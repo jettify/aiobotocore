@@ -17,12 +17,14 @@ Create virtualenv with at least python3.5 (older version are not supported).
 For example using *virtualenvwrapper* commands could look like::
 
    $ cd aiobotocore
-   $ mkvirtualenv --python=`which python3.5` aiobotocore
+   $ make init
 
-
-After that please install libraries required for development::
-
-    $ pipenv sync --dev
+The virtualenv is provided by a conda installation and the project
+dependencies are installed by poetry.  See the `Makefile` and the
+`init.sh` script for details.  The `make init` script is designed
+to be run only when a clean virtualenv is created; after that, the
+virtualenv is usually only activated and packages are managed using
+poetry.
 
 Congratulations, you are ready to run the test suite::
 
