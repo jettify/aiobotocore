@@ -10,35 +10,22 @@ python:
 # moto is incompatible with 3.5 because it relies on the key order of its url path regex rules
 #    - 3.5.9
 
-matrix:
-  include:
-  - python: 3.7
-    env: EXTRA="awscli"
-  - python: 3.7
-    env: EXTRA="boto3"
-
 install:
-    # unfortunately pipenv check fails so often due to pyup.io/security key we need to ignore it :(
-    - pip install -U setuptools pip
-    - if ! [[ -v EXTRA ]]; then
-        pip install -U pipenv &&
-        pipenv lock &&
-        pipenv sync --dev &&
-        (pipenv check || true) &&
-        pipenv graph;
-      else
-        pip install codecov &&
-        pip check &&
-        pip freeze;
-      fi
+    ## Install project dependencies into cached venv
+    ## https://docs.gitlab.com/ee/ci/caching/#caching-python-dependencies
+    - python -V
+    - pip install -U pip setuptools virtualenv
+    - virtualenv venv
+    - source venv/bin/activate
+    - curl -sSL https://raw.githubusercontent.com/sdispater/poetry/master/get-poetry.py | python
+    - source $HOME/.poetry/env
+    - poetry run python -m pip install -r requirements.dev
+    - poetry install -v --no-interaction --extras all
+    - poetry show -t --no-dev
 
 script:
-    - if [[ -v EXTRA ]]; then
-        pip install -U pipdeptree .[$EXTRA] &&
-        pipdeptree;
-      else
-        make flake mototest;
-      fi
+    - source $HOME/.poetry/env
+    - make mototest
 after_success:
     codecov
 deploy:
