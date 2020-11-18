@@ -232,6 +232,9 @@ class AioEndpoint(Endpoint):
         # botocore does this during the request so we do this here as well
         # TODO: this should be part of the ClientSession, perhaps make wrapper
         proxy = self.proxies.get(urlparse(url.lower()).scheme)
+        
+        if proxy:
+            proxy = self._fix_proxy_url(proxy)
 
         if isinstance(data, io.IOBase):
             data = _IOBaseWrapper(data)
@@ -248,6 +251,13 @@ class AioEndpoint(Endpoint):
 
         return resp
 
+    def _fix_proxy_url(self, proxy_url):
+        if proxy_url.startswith('http:') or proxy_url.startswith('https:'):
+            return proxy_url
+        elif proxy_url.startswith('//'):
+            return 'http:' + proxy_url
+        else:
+            return 'http://' + proxy_url
 
 class AioEndpointCreator(EndpointCreator):
     # TODO: handle socket_options

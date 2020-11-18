@@ -1,5 +1,9 @@
 Changes
 -------
+1.1.3 (2020-11-18)
+^^^^^^^^^^^^^^^^^^
+* Add _fix_proxy_url method to prevent errors related to aioHttp scheme check
+
 1.1.2 (2020-10-07)
 ^^^^^^^^^^^^^^^^^^
 * fix AioPageIterator search method #831 (thanks @joseph-jones)
