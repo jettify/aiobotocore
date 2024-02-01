@@ -167,10 +167,11 @@ secret accessible via environment variables:
 ::
 
     $ pip install pip-tools
-    $ pip-compile requirements-dev.txt
+    $ pip-compile requirements-dev.in
     $ pip-sync requirements-dev.txt
     $ export AWS_ACCESS_KEY_ID=xxx
     $ export AWS_SECRET_ACCESS_KEY=xxx
+    $ export AWS_DEFAULT_REGION=xxx # e.g. us-west-2
 
 Execute tests suite:
 

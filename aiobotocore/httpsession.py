@@ -1,20 +1,15 @@
+from __future__ import annotations
+
 import asyncio
 import io
 import os
 import socket
-from typing import Dict, Optional
+from typing import IO, TYPE_CHECKING, Any, cast
 
 import aiohttp  # lgtm [py/import-and-import-from]
-from aiohttp import (
-    ClientConnectionError,
-    ClientConnectorError,
-    ClientHttpProxyError,
-    ClientProxyConnectionError,
-    ClientSSLError,
-    ServerDisconnectedError,
-    ServerTimeoutError,
-)
-from aiohttp.client import URL
+import botocore
+import httpx
+from botocore.awsrequest import AWSPreparedRequest
 from botocore.httpsession import (
     MAX_POOL_CONNECTIONS,
     ConnectionClosedError,
@@ -36,37 +31,44 @@ from botocore.httpsession import (
     parse_url,
     urlparse,
 )
+from httpx import ConnectError
 from multidict import CIMultiDict
 
 import aiobotocore.awsrequest
 from aiobotocore._endpoint_helpers import _IOBaseWrapper, _text
+
+if TYPE_CHECKING:
+    from ssl import SSLContext
 
 
 class AIOHTTPSession:
     def __init__(
         self,
         verify: bool = True,
-        proxies: Dict[str, str] = None,  # {scheme: url}
-        timeout: float = None,
+        proxies: dict[str, str] | None = None,  # {scheme: url}
+        timeout: float | list[float] | tuple[float, float] | None = None,
         max_pool_connections: int = MAX_POOL_CONNECTIONS,
-        socket_options=None,
-        client_cert=None,
-        proxies_config=None,
-        connector_args=None,
+        socket_options: list[Any] | None = None,
+        client_cert: str | tuple[str, str] | None = None,
+        proxies_config: dict[str, str] | None = None,
+        connector_args: dict[str, Any] | None = None,
     ):
         # TODO: handle socket_options
-        self._session: Optional[aiohttp.ClientSession] = None
-        self._verify = verify
+        self._session: httpx.AsyncClient | None = None
         self._proxy_config = ProxyConfiguration(
             proxies=proxies, proxies_settings=proxies_config
         )
+        conn_timeout: float | None
+        read_timeout: float | None
+
         if isinstance(timeout, (list, tuple)):
             conn_timeout, read_timeout = timeout
         else:
             conn_timeout = read_timeout = timeout
-
-        timeout = aiohttp.ClientTimeout(
-            sock_connect=conn_timeout, sock_read=read_timeout
+        # must specify a default or set all four parameters explicitly
+        # 5 is httpx default default
+        self._timeout = httpx.Timeout(
+            5, connect=conn_timeout, read=read_timeout
         )
 
         self._cert_file = None
@@ -75,14 +77,29 @@ class AIOHTTPSession:
             self._cert_file = client_cert
         elif isinstance(client_cert, tuple):
             self._cert_file, self._key_file = client_cert
+        elif client_cert is not None:
+            raise TypeError(f'{client_cert} must be str or tuple[str,str]')
 
-        self._timeout = timeout
-        self._connector_args = connector_args
-        if self._connector_args is None:
+        # previous logic was: if no connector args, specify keepalive_expiry=12
+        # if any connector args, don't specify keepalive_expiry.
+        # That seems .. weird to me? I'd expect "specify keepalive_expiry if user doesn't"
+        # but keeping logic the same for now.
+        if connector_args is None:
+            # aiohttp default was 30
             # AWS has a 20 second idle timeout:
             #   https://web.archive.org/web/20150926192339/https://forums.aws.amazon.com/message.jspa?messageID=215367
-            # aiohttp default timeout is 30s so set something reasonable here
-            self._connector_args = dict(keepalive_timeout=12)
+            # "httpx default timeout is 5s so set something reasonable here"
+            self._connector_args: dict[str, Any] = {'keepalive_timeout': 12}
+        else:
+            self._connector_args = connector_args
+
+        # TODO
+        if 'use_dns_cache' in self._connector_args:
+            raise NotImplementedError("...")
+        if 'force_close' in self._connector_args:
+            raise NotImplementedError("...")
+        if 'resolver' in self._connector_args:
+            raise NotImplementedError("...")
 
         self._max_pool_connections = max_pool_connections
         self._socket_options = socket_options
@@ -92,10 +109,17 @@ class AIOHTTPSession:
         # aiohttp handles 100 continue so we shouldn't need AWSHTTP[S]ConnectionPool
         # it also pools by host so we don't need a manager, and can pass proxy via
         # request so don't need proxy manager
+        # I don't fully understand the above comment, or if it affects httpx implementation
 
-        ssl_context = None
-        if bool(verify):
-            if proxies:
+        # TODO [httpx]: clean up
+        ssl_context: SSLContext | None = None
+        self._verify: bool | str | SSLContext
+        if verify:
+            if 'ssl_context' in self._connector_args:
+                ssl_context = cast(
+                    'SSLContext', self._connector_args['ssl_context']
+                )
+            elif proxies:
                 proxies_settings = self._proxy_config.settings
                 ssl_context = self._setup_proxy_ssl_context(proxies_settings)
                 # TODO: add support for
@@ -107,25 +131,37 @@ class AIOHTTPSession:
                 ca_certs = get_cert_path(verify)
                 if ca_certs:
                     ssl_context.load_verify_locations(ca_certs, None, None)
-
-        self._create_connector = lambda: aiohttp.TCPConnector(
-            limit=max_pool_connections,
-            verify_ssl=bool(verify),
-            ssl=ssl_context,
-            **self._connector_args
-        )
-        self._connector = None
+            if ssl_context is None:
+                self._verify = True
+            else:
+                self._verify = ssl_context
+        else:
+            self._verify = False
 
     async def __aenter__(self):
-        assert not self._session and not self._connector
+        assert not self._session
 
-        self._connector = self._create_connector()
+        limits = httpx.Limits(
+            max_connections=self._max_pool_connections,
+            # 5 is httpx default, specifying None is no limit
+            keepalive_expiry=self._connector_args.get('keepalive_timeout', 5),
+        )
 
-        self._session = aiohttp.ClientSession(
-            connector=self._connector,
-            timeout=self._timeout,
-            skip_auto_headers={'CONTENT-TYPE'},
-            auto_decompress=False,
+        # TODO [httpx]: I put logic here to minimize diff / accidental downstream
+        # consequences - but can probably put this logic in __init__
+        if self._cert_file and self._key_file is None:
+            cert = self._cert_file
+        elif self._cert_file:
+            cert = (self._cert_file, self._key_file)
+        else:
+            cert = None
+
+        # TODO [httpx]: skip_auto_headers={'Content-TYPE'} ?
+        # TODO [httpx]: auto_decompress=False ?
+
+        # TODO: need to set proxy settings here, but can't use `proxy_url_for`
+        self._session = httpx.AsyncClient(
+            timeout=self._timeout, limits=limits, cert=cert
         )
         return self
 
@@ -135,13 +171,13 @@ class AIOHTTPSession:
             self._session = None
             self._connector = None
 
-    def _get_ssl_context(self):
+    def _get_ssl_context(self) -> SSLContext:
         ssl_context = create_urllib3_context()
         if self._cert_file:
             ssl_context.load_cert_chain(self._cert_file, self._key_file)
         return ssl_context
 
-    def _setup_proxy_ssl_context(self, proxy_url):
+    def _setup_proxy_ssl_context(self, proxy_url) -> SSLContext | None:
         proxies_settings = self._proxy_config.settings
         proxy_ca_bundle = proxies_settings.get('proxy_ca_bundle')
         proxy_cert = proxies_settings.get('proxy_client_cert')
@@ -170,13 +206,19 @@ class AIOHTTPSession:
     async def close(self):
         await self.__aexit__(None, None, None)
 
-    async def send(self, request):
+    async def send(
+        self, request: AWSPreparedRequest
+    ) -> aiobotocore.awsrequest.AioAWSResponse:
         try:
+            # TODO [httpx]: handle proxy stuff in __aenter__
+            # proxy_url is currently used in error messages, but not in the request
             proxy_url = self._proxy_config.proxy_url_for(request.url)
-            proxy_headers = self._proxy_config.proxy_headers_for(request.url)
+            # proxy_headers = self._proxy_config.proxy_headers_for(request.url)
             url = request.url
             headers = request.headers
-            data = request.body
+            data: str | bytes | bytearray | IO[bytes] | IO[
+                str
+            ] | None = request.body
 
             if ensure_boolean(
                 os.environ.get('BOTO_EXPERIMENTAL__ADD_PROXY_HOST_HEADER', '')
@@ -185,8 +227,11 @@ class AIOHTTPSession:
                 # no guarantees of backwards compatibility. It may be subject
                 # to change or removal in any patch version. Anyone opting in
                 # to this feature should strictly pin botocore.
-                host = urlparse(request.url).hostname
-                proxy_headers['host'] = host
+
+                # TODO [httpx]: ...
+                ...
+                # host = urlparse(request.url).hostname
+                # proxy_headers['host'] = host
 
             headers_ = CIMultiDict(
                 (z[0], _text(z[1], encoding='utf-8')) for z in headers.items()
@@ -195,28 +240,58 @@ class AIOHTTPSession:
             # https://github.com/boto/botocore/issues/1255
             headers_['Accept-Encoding'] = 'identity'
 
-            chunked = None
-            if headers_.get('Transfer-Encoding', '').lower() == 'chunked':
-                # aiohttp wants chunking as a param, and not a header
-                headers_.pop('Transfer-Encoding', '')
-                chunked = True
+            content: bytes | str | None = None
 
+            # previously data was wrapped in _IOBaseWrapper
+            # github.com/aio-libs/aiohttp/issues/1907
+            # I haven't researched whether that's relevant with httpx.
+
+            # TODO [httpx]: obviously clean this up
             if isinstance(data, io.IOBase):
-                data = _IOBaseWrapper(data)
+                # TODO [httpx]: httpx really wants an async iterable that is not also a
+                # sync iterable. Seems like there should be an easy answer, but I just
+                # convert it to bytes for now.
+                k = data.readlines()
+                if len(k) == 0:
+                    content = b''
+                elif len(k) == 1:
+                    content = k[0]
+                else:
+                    assert False
+            elif data is None:
+                content = data
+            # no test checks bytearray, which request.body can give
+            elif isinstance(data, bytes):
+                content = data
+            elif isinstance(data, str):
+                content = data
+            else:
+                raise ValueError("invalid type for data")
 
-            url = URL(url, encoded=True)
+            assert self._session
+
+            # TODO [httpx]: httpx does not accept yarl.URL's (which is what
+            # aiohttp.client.URL is). What does this wrapping achieve? Can we replace
+            # with httpx.URL? Or just pass in the url directly?
+            # url = URL(url, encoded=True)
             response = await self._session.request(
                 request.method,
                 url=url,
-                chunked=chunked,
                 headers=headers_,
-                data=data,
-                proxy=proxy_url,
-                proxy_headers=proxy_headers,
+                content=content,
+                # httpx does not allow request-specific proxy settings
+                # proxy=proxy_url,
+                # proxy_headers=proxy_headers,
+            )
+            response_headers = botocore.compat.HTTPHeaders.from_pairs(
+                response.headers.items()
             )
 
             http_response = aiobotocore.awsrequest.AioAWSResponse(
-                str(response.url), response.status, response.headers, response
+                str(response.url),
+                response.status_code,
+                response_headers,
+                response,
             )
 
             if not request.stream_output:
@@ -226,34 +301,50 @@ class AIOHTTPSession:
                 await http_response.content
 
             return http_response
-        except ClientSSLError as e:
+
+        except httpx.ConnectError as e:
+            # TODO [httpx]: this passes tests ... but I hate it
+            if proxy_url:
+                raise ProxyConnectionError(
+                    proxy_url=mask_proxy_url(proxy_url), error=e
+                )
+            raise EndpointConnectionError(endpoint_url=request.url, error=e)
+
+        # old
+        except aiohttp.ClientSSLError as e:
             raise SSLError(endpoint_url=request.url, error=e)
-        except (ClientProxyConnectionError, ClientHttpProxyError) as e:
+        except (
+            aiohttp.ClientProxyConnectionError,
+            aiohttp.ClientHttpProxyError,
+        ) as e:
             raise ProxyConnectionError(
                 proxy_url=mask_proxy_url(proxy_url), error=e
             )
         except (
-            ServerDisconnectedError,
+            aiohttp.ServerDisconnectedError,
             aiohttp.ClientPayloadError,
             aiohttp.http_exceptions.BadStatusLine,
         ) as e:
             raise ConnectionClosedError(
                 error=e, request=request, endpoint_url=request.url
             )
-        except ServerTimeoutError as e:
+        except aiohttp.ServerTimeoutError as e:
             if str(e).lower().startswith('connect'):
                 raise ConnectTimeoutError(endpoint_url=request.url, error=e)
             else:
                 raise ReadTimeoutError(endpoint_url=request.url, error=e)
         except (
-            ClientConnectorError,
-            ClientConnectionError,
+            aiohttp.ClientConnectorError,
+            aiohttp.ClientConnectionError,
             socket.gaierror,
         ) as e:
             raise EndpointConnectionError(endpoint_url=request.url, error=e)
         except asyncio.TimeoutError as e:
             raise ReadTimeoutError(endpoint_url=request.url, error=e)
-        except Exception as e:
-            message = 'Exception received when sending urllib3 HTTP request'
-            logger.debug(message, exc_info=True)
-            raise HTTPClientError(error=e)
+        except httpx.ReadTimeout as e:
+            raise ReadTimeoutError(endpoint_url=request.url, error=e)
+        # commented out during development to be able to view backtrace
+        # except Exception as e:
+        #    message = 'Exception received when sending urllib3 HTTP request'
+        #    logger.debug(message, exc_info=True)
+        #    raise HTTPClientError(error=e)

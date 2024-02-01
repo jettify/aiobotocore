@@ -1,4 +1,5 @@
 import botocore.utils
+import httpx
 from botocore.awsrequest import AWSResponse
 
 
@@ -10,7 +11,10 @@ class AioAWSResponse(AWSResponse):
 
         if self._content is None:
             # NOTE: this will cache the data in self.raw
-            self._content = await self.raw.read() or b''
+            if isinstance(self.raw, httpx.Response):
+                self._content = await self.raw.aread() or b''
+            else:
+                self._content = await self.raw.read() or b''
 
         return self._content
 

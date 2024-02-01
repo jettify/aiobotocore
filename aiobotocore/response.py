@@ -1,7 +1,7 @@
 import asyncio
 
-import aiohttp
 import aiohttp.client_exceptions
+import httpx
 import wrapt
 from botocore.response import (
     IncompleteReadError,
@@ -29,17 +29,31 @@ class StreamingBody(wrapt.ObjectProxy):
 
     _DEFAULT_CHUNK_SIZE = 1024
 
-    def __init__(self, raw_stream: aiohttp.StreamReader, content_length: str):
+    # TODO [httpx]: this type is not fully correct .. I think
+    def __init__(self, raw_stream: httpx.Response, content_length: str):
         super().__init__(raw_stream)
         self._self_content_length = content_length
         self._self_amount_read = 0
 
     # https://github.com/GrahamDumpleton/wrapt/issues/73
+    # TODO [httpx]: httpx doesn't seem to do context manager for the response
+    # so I kinda hate these
     async def __aenter__(self):
-        return await self.__wrapped__.__aenter__()
+        if isinstance(self.__wrapped__, httpx.Response):
+            return self
+            # return await self.__wrapped__.aiter_bytes()
+        else:
+            # not encountered in test suite, but maybe still needs to be supported?
+            assert False
+            return await self.__wrapped__.__aenter__()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+        if isinstance(self.__wrapped__, httpx.Response):
+            await self.__wrapped__.aclose()
+        else:
+            # not encountered in test suite, but maybe still needs to be supported?
+            assert False
+            return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
     # NOTE: set_socket_timeout was only for when requests didn't support
     #       read timeouts, so not needed
@@ -53,13 +67,37 @@ class StreamingBody(wrapt.ObjectProxy):
         """
         # botocore to aiohttp mapping
         try:
-            chunk = await self.__wrapped__.content.read(
-                amt if amt is not None else -1
-            )
+            import httpx
+
+            if isinstance(self.__wrapped__, httpx.Response):
+                if amt is None:
+                    chunk = self.__wrapped__.content
+                else:
+                    # TODO [httpx]: to read a specific number of bytes I think we need to
+                    # stream into a bytearray, or something
+                    # ... actually no I'm completely flummoxed by this. I get
+                    # StreamConsumed errors, and apparently the text is available in
+                    # self.__wrapped__.text npnp. Possible we need to do
+                    # For situations when context block usage is not practical, it is
+                    # possible to enter "manual mode" by sending a Request instance
+                    # using client.send(..., stream=True).
+
+                    # use memoryview?
+                    bb = bytearray()
+                    kk = self.__wrapped__.aiter_raw()
+                    for i in range(amt):
+                        bb.append(await anext(kk))
+                    # TODO [httpx]: this does not seem to get triggered .... idk
+                    assert False
+            else:
+                chunk = await self.__wrapped__.content.read(
+                    amt if amt is not None else -1
+                )
         except asyncio.TimeoutError as e:
             raise AioReadTimeoutError(
                 endpoint_url=self.__wrapped__.url, error=e
             )
+        # TODO [httpx]
         except aiohttp.client_exceptions.ClientConnectionError as e:
             raise ResponseStreamingError(error=e)
 

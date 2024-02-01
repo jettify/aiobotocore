@@ -1,5 +1,7 @@
 import asyncio
+from typing import Any
 
+import httpx
 from botocore.endpoint import (
     DEFAULT_TIMEOUT,
     MAX_POOL_CONNECTIONS,
@@ -13,14 +15,19 @@ from botocore.endpoint import (
     logger,
 )
 from botocore.hooks import first_non_none_response
-from urllib3.response import HTTPHeaderDict
+from requests.models import Response
+from urllib3._collections import HTTPHeaderDict
 
 from aiobotocore.httpchecksum import handle_checksum_body
 from aiobotocore.httpsession import AIOHTTPSession
 from aiobotocore.response import StreamingBody
 
+# from botocore.awsrequest import AWSResponse
 
-async def convert_to_response_dict(http_response, operation_model):
+
+async def convert_to_response_dict(
+    http_response: Response, operation_model
+) -> dict[str, Any]:
     """Convert an HTTP response object to a request dict.
 
     This converts the requests library's HTTP response object to
@@ -36,7 +43,8 @@ async def convert_to_response_dict(http_response, operation_model):
         * body (string or file-like object)
 
     """
-    response_dict = {
+    http_response.raw: httpx.Response
+    response_dict: dict[str, Any] = {
         # botocore converts keys to str, so make sure that they are in
         # the expected case. See detailed discussion here:
         # https://github.com/aio-libs/aiobotocore/pull/116
@@ -44,7 +52,7 @@ async def convert_to_response_dict(http_response, operation_model):
         'headers': HTTPHeaderDict(
             {
                 k.decode('utf-8').lower(): v.decode('utf-8')
-                for k, v in http_response.raw.raw_headers
+                for k, v in http_response.raw.headers.raw
             }
         ),
         'status_code': http_response.status_code,
@@ -181,11 +189,11 @@ class AioEndpoint(Endpoint):
                 http_response = await self._send(request)
         except HTTPClientError as e:
             return (None, e)
-        except Exception as e:
-            logger.debug(
-                "Exception received when sending HTTP request.", exc_info=True
-            )
-            return (None, e)
+        # except Exception as e:
+        #    logger.debug(
+        #        "Exception received when sending HTTP request.", exc_info=True
+        #    )
+        #    return (None, e)
 
         # This returns the http_response and the parsed_data.
         response_dict = await convert_to_response_dict(

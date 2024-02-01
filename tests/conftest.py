@@ -7,7 +7,7 @@ from contextlib import ExitStack
 from itertools import chain
 from unittest.mock import patch
 
-import aiohttp
+import httpx
 
 # Third Party
 import pytest
@@ -503,9 +503,9 @@ def create_multipart_upload(request, s3_client, bucket_name, event_loop):
 
 
 @pytest.fixture
-async def aio_session():
-    async with aiohttp.ClientSession() as session:
-        yield session
+async def httpx_async_client():
+    async with httpx.AsyncClient() as client:
+        yield client
 
 
 def pytest_configure():
