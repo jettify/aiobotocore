@@ -243,8 +243,6 @@ async def test_can_get_and_put_object(
 async def test_adaptive_retry(
     s3_client, config, create_object, bucket_name, patch_attributes
 ):
-    # I disabled retries
-    return
     await create_object('foobarbaz', body='body contents')
 
     # Check that our async implementations were correctly called.
@@ -272,7 +270,6 @@ async def test_adaptive_retry(
 async def test_get_object_stream_wrapper(
     s3_client, create_object, bucket_name
 ):
-    return
     await create_object('foobarbaz', body='body contents')
     response = await s3_client.get_object(Bucket=bucket_name, Key='foobarbaz')
     body = response['Body']

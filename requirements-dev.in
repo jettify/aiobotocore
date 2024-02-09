@@ -16,5 +16,7 @@ dill~=0.3.3
 Pygments
 
 httpx
+# needed for tests.mock_server and tests.moto_server
+aiohttp
 
 -e .[awscli,boto3]

@@ -11,10 +11,7 @@ class AioAWSResponse(AWSResponse):
 
         if self._content is None:
             # NOTE: this will cache the data in self.raw
-            if isinstance(self.raw, httpx.Response):
-                self._content = await self.raw.aread() or b''
-            else:
-                self._content = await self.raw.read() or b''
+            self._content = await self.raw.aread() or b''
 
         return self._content
 

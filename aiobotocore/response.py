@@ -31,6 +31,9 @@ class StreamingBody(wrapt.ObjectProxy):
 
     # TODO [httpx]: this type is not fully correct .. I think
     def __init__(self, raw_stream: httpx.Response, content_length: str):
+        print(next(raw_stream.aiter_bytes()))
+        print(next(raw_stream.aiter_raw()))
+        breakpoint()
         super().__init__(raw_stream)
         self._self_content_length = content_length
         self._self_amount_read = 0
@@ -78,17 +81,19 @@ class StreamingBody(wrapt.ObjectProxy):
                     # ... actually no I'm completely flummoxed by this. I get
                     # StreamConsumed errors, and apparently the text is available in
                     # self.__wrapped__.text npnp. Possible we need to do
-                    # For situations when context block usage is not practical, it is
+                    # "For situations when context block usage is not practical, it is
                     # possible to enter "manual mode" by sending a Request instance
-                    # using client.send(..., stream=True).
+                    # using client.send(..., stream=True)."
 
                     # use memoryview?
-                    bb = bytearray()
-                    kk = self.__wrapped__.aiter_raw()
-                    for i in range(amt):
-                        bb.append(await anext(kk))
+                    #bb = bytearray()
+                    kk = self.__wrapped__.aiter_raw(amt)
+                    chunk = await anext(kk)
+                    #for i in range(amt):
+                    #    breakpoint()
+                    #    print(await anext(kk))
+                    #    bb.append(await anext(kk))
                     # TODO [httpx]: this does not seem to get triggered .... idk
-                    assert False
             else:
                 chunk = await self.__wrapped__.content.read(
                     amt if amt is not None else -1

@@ -95,7 +95,7 @@ class AIOHTTPSession:
 
         # TODO
         if 'use_dns_cache' in self._connector_args:
-            raise NotImplementedError("...")
+            raise NotImplementedError("DNS caching is not implemented by httpx. https://github.com/encode/httpx/discussions/2211")
         if 'force_close' in self._connector_args:
             raise NotImplementedError("...")
         if 'resolver' in self._connector_args:
@@ -274,18 +274,25 @@ class AIOHTTPSession:
             # aiohttp.client.URL is). What does this wrapping achieve? Can we replace
             # with httpx.URL? Or just pass in the url directly?
             # url = URL(url, encoded=True)
-            response = await self._session.request(
-                request.method,
-                url=url,
-                headers=headers_,
-                content=content,
-                # httpx does not allow request-specific proxy settings
-                # proxy=proxy_url,
-                # proxy_headers=proxy_headers,
-            )
+            httpx_request = self._session.build_request(method = request.method, url=url, headers=headers, content=content)
+            # auth, follow_redirects
+            response = await self._session.send(httpx_request, stream=True)
+            #response = await self._session.request(
+            #    request.method,
+            #    url=url,
+            #    headers=headers_,
+            #    content=content,
+            #    # httpx does not allow request-specific proxy settings
+            #    # proxy=proxy_url,
+            #    # proxy_headers=proxy_headers,
+            #)
             response_headers = botocore.compat.HTTPHeaders.from_pairs(
                 response.headers.items()
             )
+            print()
+            print(await anext(response.aiter_bytes()))
+            print(await anext(response.aiter_raw()))
+            breakpoint()
 
             http_response = aiobotocore.awsrequest.AioAWSResponse(
                 str(response.url),
