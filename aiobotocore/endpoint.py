@@ -1,7 +1,6 @@
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import httpx
 from botocore.endpoint import (
     DEFAULT_TIMEOUT,
     MAX_POOL_CONNECTIONS,
@@ -22,7 +21,12 @@ from aiobotocore.httpchecksum import handle_checksum_body
 from aiobotocore.httpsession import AIOHTTPSession
 from aiobotocore.response import StreamingBody
 
-# from botocore.awsrequest import AWSResponse
+try:
+    import httpx
+except ImportError:
+    httpx = None
+if TYPE_CHECKING:
+    import aiohttp
 
 
 async def convert_to_response_dict(
@@ -43,7 +47,11 @@ async def convert_to_response_dict(
         * body (string or file-like object)
 
     """
-    http_response.raw: httpx.Response
+    http_response.raw: httpx.Response | aiohttp.ClientResponse
+    if httpx and isinstance(http_response.raw, httpx.Response):
+        raw_headers = http_response.raw.headers.raw
+    else:
+        raw_headers = http_response.raw.raw_headers
     response_dict: dict[str, Any] = {
         # botocore converts keys to str, so make sure that they are in
         # the expected case. See detailed discussion here:
@@ -52,7 +60,7 @@ async def convert_to_response_dict(
         'headers': HTTPHeaderDict(
             {
                 k.decode('utf-8').lower(): v.decode('utf-8')
-                for k, v in http_response.raw.headers.raw
+                for k, v in raw_headers
             }
         ),
         'status_code': http_response.status_code,
@@ -60,13 +68,17 @@ async def convert_to_response_dict(
             'operation_name': operation_model.name,
         },
     }
+    # TODO [httpx]: figure out what to do in the other branches
     if response_dict['status_code'] >= 300:
         response_dict['body'] = await http_response.content
     elif operation_model.has_event_stream_output:
         response_dict['body'] = http_response.raw
     elif operation_model.has_streaming_output:
-        length = response_dict['headers'].get('content-length')
-        response_dict['body'] = StreamingBody(http_response.raw, length)
+        if httpx and isinstance(http_response.raw, httpx.Response):
+            response_dict['body'] = http_response.raw
+        else:
+            length = response_dict['headers'].get('content-length')
+            response_dict['body'] = StreamingBody(http_response.raw, length)
     else:
         response_dict['body'] = await http_response.content
     return response_dict

@@ -4,6 +4,8 @@ import botocore.parsers
 import botocore.serialize
 from botocore.args import ClientArgsCreator
 
+from aiobotocore.httpsession import AIOHTTPSession
+
 from .config import AioConfig
 from .endpoint import AioEndpointCreator
 from .regions import AioEndpointRulesetResolver
@@ -67,8 +69,10 @@ class AioClientArgsCreator(ClientArgsCreator):
         # aiobotocore addition
         if isinstance(client_config, AioConfig):
             connector_args = client_config.connector_args
+            http_session_cls = client_config.http_session_cls
         else:
             connector_args = None
+            http_session_cls = AIOHTTPSession
 
         new_config = AioConfig(connector_args, **config_kwargs)
         endpoint_creator = AioEndpointCreator(event_emitter)
@@ -79,9 +83,10 @@ class AioClientArgsCreator(ClientArgsCreator):
             endpoint_url=endpoint_config['endpoint_url'],
             verify=verify,
             response_parser_factory=self._response_parser_factory,
-            max_pool_connections=new_config.max_pool_connections,
-            proxies=new_config.proxies,
             timeout=(new_config.connect_timeout, new_config.read_timeout),
+            max_pool_connections=new_config.max_pool_connections,
+            http_session_cls=http_session_cls,
+            proxies=new_config.proxies,
             socket_options=socket_options,
             client_cert=new_config.client_cert,
             proxies_config=new_config.proxies_config,

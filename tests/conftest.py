@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import os
 import random
@@ -5,8 +7,10 @@ import string
 import tempfile
 from contextlib import ExitStack
 from itertools import chain
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+import aiohttp
 import httpx
 
 # Third Party
@@ -14,7 +18,11 @@ import pytest
 
 import aiobotocore.session
 from aiobotocore.config import AioConfig
+from aiobotocore.httpsession import AIOHTTPSession, HttpxSession
 from tests._helpers import AsyncExitStack
+
+if TYPE_CHECKING:
+    from _pytest.nodes import Node
 
 host = '127.0.0.1'
 
@@ -135,13 +143,18 @@ def s3_verify():
     return None
 
 
+def read_kwargs(node: Node) -> dict[str, object]:
+    config_kwargs = {}
+    for mark in node.iter_markers("config_kwargs"):
+        assert not mark.kwargs, config_kwargs
+        assert len(mark.args) == 1
+        config_kwargs.update(mark.args[0])
+    return config_kwargs
+
+
 @pytest.fixture
 def config(request, region, signature_version):
-    config_kwargs = request.node.get_closest_marker("config_kwargs") or {}
-    if config_kwargs:
-        assert not config_kwargs.kwargs, config_kwargs
-        assert len(config_kwargs.args) == 1
-        config_kwargs = config_kwargs.args[0]
+    config_kwargs = read_kwargs(request.node)
 
     connect_timeout = read_timout = 5
     if _PYCHARM_HOSTED:
@@ -240,15 +253,22 @@ async def s3_client(
 
 @pytest.fixture
 async def alternative_s3_client(
-    session, alternative_region, signature_version, s3_server, mocking_test
+    session,
+    alternative_region,
+    signature_version,
+    s3_server,
+    mocking_test,
+    request,
 ):
     kw = moto_config(s3_server) if mocking_test else {}
+    kwargs = read_kwargs(request.node)
 
     config = AioConfig(
         region_name=alternative_region,
         signature_version=signature_version,
         read_timeout=5,
         connect_timeout=5,
+        **kwargs,
     )
 
     async with session.create_client(
@@ -503,9 +523,23 @@ def create_multipart_upload(request, s3_client, bucket_name, event_loop):
 
 
 @pytest.fixture
-async def httpx_async_client():
-    async with httpx.AsyncClient() as client:
-        yield client
+async def aio_session(request):
+    # if http_session_cls is specified in config_kwargs, use the appropriate library
+    for mark in request.node.iter_markers("config_kwargs"):
+        assert len(mark.args) == 1
+        assert isinstance(mark.args[0], dict)
+        http_session_cls = mark.args[0].get('http_session_cls')
+        if http_session_cls is HttpxSession:
+            async with httpx.AsyncClient() as client:
+                yield client
+            break
+        elif http_session_cls is AIOHTTPSession:
+            async with aiohttp.ClientSession() as session:
+                yield session
+            break
+    else:
+        async with aiohttp.ClientSession() as session:
+            yield session
 
 
 def pytest_configure():
@@ -575,6 +609,21 @@ async def sqs_queue_url(sqs_client):
 async def exit_stack():
     async with AsyncExitStack() as es:
         yield es
+
+
+def pytest_generate_tests(metafunc):
+    metafunc.parametrize(
+        '',
+        [
+            pytest.param(id='aiohttp'),
+            pytest.param(
+                id='httpx',
+                marks=pytest.mark.config_kwargs(
+                    {'http_session_cls': HttpxSession}
+                ),
+            ),
+        ],
+    )
 
 
 pytest_plugins = ['tests.mock_server']

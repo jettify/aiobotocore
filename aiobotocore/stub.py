@@ -3,6 +3,7 @@ from botocore.stub import Stubber
 from .awsrequest import AioAWSResponse
 
 
+# Not currently adapted for use with httpx
 class AioStubber(Stubber):
     def _add_response(self, method, service_response, expected_params):
         if not hasattr(self.client, method):

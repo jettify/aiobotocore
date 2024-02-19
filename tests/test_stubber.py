@@ -6,6 +6,8 @@ from aiobotocore.stub import AioStubber
 
 from .mock_server import AIOServer
 
+# these tests don't currently care about aiohttp vs httpx
+
 
 @pytest.mark.moto
 @pytest.mark.asyncio

@@ -22,13 +22,10 @@ class AsyncBytesIO(io.BytesIO):
         super().__init__(*args, **kwargs)
         self.content = self
 
-    # is it fine to rename this function?
-    async def aread(self, amt=-1):
-        # ... I don't understand this comment
+    async def read(self, amt=-1):
         if amt == -1:  # aiohttp to regular response
             amt = None
         return super().read(amt)
-    read = aread
 
 
 async def _tolist(aiter):

@@ -7,15 +7,16 @@ from setuptools import find_packages, setup
 # NOTE: When updating botocore make sure to update awscli/boto3 versions below
 install_requires = [
     # pegged to also match items in `extras_require`
-    'botocore>=1.33.2,<1.34.28',
-    'httpx',
+    'botocore>=1.33.2,<1.34.35',
+    'aiohttp>=3.7.4.post0,<4.0.0',
     'wrapt>=1.10.10, <2.0.0',
     'aioitertools>=0.5.1,<1.0.0',
 ]
 
 extras_require = {
-    'awscli': ['awscli>=1.31.2,<1.32.28'],
-    'boto3': ['boto3>=1.33.2,<1.34.28'],
+    'awscli': ['awscli>=1.31.2,<1.32.35'],
+    'boto3': ['boto3>=1.33.2,<1.34.35'],
+    'httpx': ['httpx'],
 }
 
 
@@ -39,7 +40,7 @@ def read_version():
 setup(
     name='aiobotocore',
     version=read_version(),
-    description='Async client for aws services using botocore and httpx',
+    description='Async client for aws services using botocore and aiohttp/httpx',
     long_description='\n\n'.join((read('README.rst'), read('CHANGES.rst'))),
     long_description_content_type='text/x-rst',
     classifiers=[

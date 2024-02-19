@@ -4,6 +4,7 @@ cache_dir = "/tmp/pytest_aiobotocore_cache"
 markers = [
     "moto",
     "config_kwargs",
+    "http_session_cls",
     "patch_attributes",
 ]
 

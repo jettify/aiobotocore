@@ -5,6 +5,7 @@ import zipfile
 
 # Third Party
 import botocore.client
+import httpx
 import pytest
 
 
@@ -64,10 +65,16 @@ async def test_run_lambda(iam_client, lambda_client, aws_lambda_zip):
         Payload=json.dumps({"hello": "world"}),
     )
 
-    async with invoke_response['Payload'] as stream:
-        data = await stream.read()
+    if isinstance(invoke_response['Payload'], httpx.Response):
+        data = await invoke_response['Payload'].aread()
+    else:
+        async with invoke_response['Payload'] as stream:
+            data = await stream.read()
 
     log_result = base64.b64decode(invoke_response["LogResult"])
 
     assert json.loads(data) == {'statusCode': 200, "body": {"hello": "world"}}
     assert b"{'hello': 'world'}" in log_result
+
+    # clean up test so it can be parametrized
+    await lambda_client.delete_function(FunctionName='test-function')

@@ -3,13 +3,18 @@ import copy
 import botocore.client
 from botocore.exceptions import ParamValidationError
 
+from aiobotocore.httpsession import AIOHTTPSession
+
 
 class AioConfig(botocore.client.Config):
-    def __init__(self, connector_args=None, **kwargs):
+    def __init__(
+        self, connector_args=None, http_session_cls=AIOHTTPSession, **kwargs
+    ):
         super().__init__(**kwargs)
 
         self._validate_connector_args(connector_args)
         self.connector_args = copy.copy(connector_args)
+        self.http_session_cls = http_session_cls
         if not self.connector_args:
             self.connector_args = dict()
 
