@@ -3,28 +3,21 @@ import asyncio
 import pytest
 
 import aiobotocore.session
-from aiobotocore.httpsession import HttpxSession
 from tests._helpers import AsyncExitStack
 
 
 @pytest.mark.asyncio
-async def test_kinesis_stream_json_parser(request, exit_stack: AsyncExitStack):
+async def test_kinesis_stream_json_parser(
+    request, exit_stack: AsyncExitStack, current_http_backend: str
+):
     # unfortunately moto doesn't support kinesis register_stream_consumer +
     # subscribe_to_shard yet
-    stream_name = "my_stream"
+    # make stream name depend on backend so the test can be parallelized across them
+    stream_name = f"my_stream_{current_http_backend}"
     stream_arn = consumer_arn = None
     consumer_name = 'consumer'
 
-    # TODO: aiobotocore.session vs aiobotocore.httpsession
-    for mark in request.node.iter_markers("config_kwargs"):
-        assert len(mark.args) == 1
-        assert isinstance(mark.args[0], dict)
-        http_session_cls = mark.args[0].get('http_session_cls')
-        if http_session_cls is HttpxSession:
-            session = HttpxSession()
-            break
-    else:
-        session = aiobotocore.session.AioSession()
+    session = aiobotocore.session.AioSession()
 
     kinesis_client = await exit_stack.enter_async_context(
         session.create_client('kinesis')
