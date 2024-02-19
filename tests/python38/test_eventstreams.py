@@ -15,6 +15,7 @@ async def test_kinesis_stream_json_parser(request, exit_stack: AsyncExitStack):
     stream_arn = consumer_arn = None
     consumer_name = 'consumer'
 
+    # TODO: aiobotocore.session vs aiobotocore.httpsession
     for mark in request.node.iter_markers("config_kwargs"):
         assert len(mark.args) == 1
         assert isinstance(mark.args[0], dict)

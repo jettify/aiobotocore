@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import itertools
 import json
-from typing import List, Tuple, Union
+from typing import Iterator, Tuple, Union
 
 import pytest
 from botocore.exceptions import ReadTimeoutError
@@ -9,18 +11,17 @@ from botocore.utils import BadIMDSRequestError
 from aiobotocore import utils
 from aiobotocore._helpers import asynccontextmanager
 
+# TypeAlias (requires typing_extensions or >=3.10 to annotate)
+Response = Tuple[Union[str, object], int]
+
 
 # From class TestContainerMetadataFetcher
-def fake_aiohttp_session(
-    responses: Union[
-        List[Tuple[Union[str, object], int]], Tuple[Union[str, object], int]
-    ]
-):
+def fake_aiohttp_session(responses: list[Response] | Response):
     """
     Dodgy shim class
     """
-    if isinstance(responses, Tuple):
-        data = itertools.cycle([responses])
+    if isinstance(responses, tuple):
+        data: Iterator[Response] = itertools.cycle([responses])
     else:
         data = iter(responses)
 
@@ -83,9 +84,7 @@ async def test_idmsfetcher_disabled():
 @pytest.mark.asyncio
 async def test_idmsfetcher_get_token_success():
     session = fake_aiohttp_session(
-        [
-            ('blah', 200),
-        ]
+        ('blah', 200),
     )
 
     fetcher = utils.AioIMDSFetcher(

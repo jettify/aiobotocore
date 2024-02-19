@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from typing import TYPE_CHECKING, Any
 
@@ -201,11 +203,11 @@ class AioEndpoint(Endpoint):
                 http_response = await self._send(request)
         except HTTPClientError as e:
             return (None, e)
-        # except Exception as e:
-        #    logger.debug(
-        #        "Exception received when sending HTTP request.", exc_info=True
-        #    )
-        #    return (None, e)
+        except Exception as e:
+            logger.debug(
+                "Exception received when sending HTTP request.", exc_info=True
+            )
+            return (None, e)
 
         # This returns the http_response and the parsed_data.
         response_dict = await convert_to_response_dict(
@@ -293,7 +295,7 @@ class AioEndpoint(Endpoint):
             return False
         else:
             # Request needs to be retried, and we need to sleep
-            # for the specified number of times.
+            # for the specified number of seconds.
             logger.debug(
                 "Response received to retry, sleeping for %s seconds",
                 handler_response,

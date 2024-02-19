@@ -7,7 +7,7 @@ import string
 import tempfile
 from contextlib import ExitStack
 from itertools import chain
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from unittest.mock import patch
 
 import aiohttp
@@ -143,11 +143,26 @@ def s3_verify():
     return None
 
 
+@pytest.fixture
+def current_http_backend(request) -> Literal['httpx', 'aiohttp']:
+    # if http_session_cls is specified in config_kwargs, use the appropriate library
+    for mark in request.node.iter_markers("config_kwargs"):
+        assert len(mark.args) == 1
+        assert isinstance(mark.args[0], dict)
+        http_session_cls = mark.args[0].get('http_session_cls')
+        if http_session_cls is HttpxSession:
+            return 'httpx'
+        elif http_session_cls is AIOHTTPSession:
+            return 'aiohttp'
+    return 'aiohttp'
+
+
 def read_kwargs(node: Node) -> dict[str, object]:
     config_kwargs = {}
     for mark in node.iter_markers("config_kwargs"):
         assert not mark.kwargs, config_kwargs
         assert len(mark.args) == 1
+        assert isinstance(mark.args[0], dict)
         config_kwargs.update(mark.args[0])
     return config_kwargs
 
@@ -523,20 +538,10 @@ def create_multipart_upload(request, s3_client, bucket_name, event_loop):
 
 
 @pytest.fixture
-async def aio_session(request):
-    # if http_session_cls is specified in config_kwargs, use the appropriate library
-    for mark in request.node.iter_markers("config_kwargs"):
-        assert len(mark.args) == 1
-        assert isinstance(mark.args[0], dict)
-        http_session_cls = mark.args[0].get('http_session_cls')
-        if http_session_cls is HttpxSession:
-            async with httpx.AsyncClient() as client:
-                yield client
-            break
-        elif http_session_cls is AIOHTTPSession:
-            async with aiohttp.ClientSession() as session:
-                yield session
-            break
+async def aio_session(current_http_backend: Literal['httpx', 'aiohttp']):
+    if current_http_backend == 'httpx':
+        async with httpx.AsyncClient() as client:
+            yield client
     else:
         async with aiohttp.ClientSession() as session:
             yield session
