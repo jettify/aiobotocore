@@ -58,7 +58,7 @@ jobs:
       env:
         COLOR: 'yes'
       run: |
-        pip uninstall httpx
+        pip uninstall --yes httpx
         HTTP_BACKEND='aiohttp' make mototest
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.11'
