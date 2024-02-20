@@ -285,15 +285,17 @@ class HttpxSession:
         proxies_config: dict[str, str] | None = None,
         connector_args: dict[str, Any] | None = None,
     ):
-        if httpx is None:
+        if httpx is None:  # pragma: no cover
             raise RuntimeError(
                 "Using HttpxSession requires httpx to be installed"
             )
+        if proxies or proxies_config:
+            raise NotImplementedError(
+                "Proxy support not implemented with httpx as backend."
+            )
+
         # TODO: handle socket_options
         self._session: httpx.AsyncClient | None = None
-        self._proxy_config = ProxyConfiguration(
-            proxies=proxies, proxies_settings=proxies_config
-        )
         conn_timeout: float | None
         read_timeout: float | None
 
@@ -343,11 +345,6 @@ class HttpxSession:
         if socket_options is None:
             self._socket_options = []
 
-        # aiohttp handles 100 continue so we shouldn't need AWSHTTP[S]ConnectionPool
-        # it also pools by host so we don't need a manager, and can pass proxy via
-        # request so don't need proxy manager
-        # I don't fully understand the above comment, or if it affects httpx implementation
-
         # TODO [httpx]: clean up
         ssl_context: SSLContext | None = None
         self._verify: bool | str | SSLContext = verify
@@ -359,18 +356,12 @@ class HttpxSession:
             )
             return
 
-        if proxies:
-            proxies_settings = self._proxy_config.settings
-            ssl_context = self._setup_proxy_ssl_context(proxies_settings)
-            # TODO: add support for
-            #    proxies_settings.get('proxy_use_forwarding_for_https')
-        else:
-            ssl_context = self._get_ssl_context()
+        ssl_context = self._get_ssl_context()
 
-            # inline self._setup_ssl_cert
-            ca_certs = get_cert_path(verify)
-            if ca_certs:
-                ssl_context.load_verify_locations(ca_certs, None, None)
+        # inline self._setup_ssl_cert
+        ca_certs = get_cert_path(verify)
+        if ca_certs:
+            ssl_context.load_verify_locations(ca_certs, None, None)
         if ssl_context is not None:
             self._verify = ssl_context
 
@@ -395,7 +386,6 @@ class HttpxSession:
         # TODO [httpx]: skip_auto_headers={'Content-TYPE'} ?
         # TODO [httpx]: auto_decompress=False ?
 
-        # TODO: need to set proxy settings here, but can't use `proxy_url_for`
         self._session = httpx.AsyncClient(
             timeout=self._timeout, limits=limits, cert=cert
         )
@@ -413,32 +403,6 @@ class HttpxSession:
             ssl_context.load_cert_chain(self._cert_file, self._key_file)
         return ssl_context
 
-    def _setup_proxy_ssl_context(self, proxy_url) -> SSLContext | None:
-        proxies_settings = self._proxy_config.settings
-        proxy_ca_bundle = proxies_settings.get('proxy_ca_bundle')
-        proxy_cert = proxies_settings.get('proxy_client_cert')
-        if proxy_ca_bundle is None and proxy_cert is None:
-            return None
-
-        context = self._get_ssl_context()
-        try:
-            url = parse_url(proxy_url)
-            # urllib3 disables this by default but we need it for proper
-            # proxy tls negotiation when proxy_url is not an IP Address
-            if not _is_ipaddress(url.host):
-                context.check_hostname = True
-            if proxy_ca_bundle is not None:
-                context.load_verify_locations(cafile=proxy_ca_bundle)
-
-            if isinstance(proxy_cert, tuple):
-                context.load_cert_chain(proxy_cert[0], keyfile=proxy_cert[1])
-            elif isinstance(proxy_cert, str):
-                context.load_cert_chain(proxy_cert)
-
-            return context
-        except (OSError, LocationParseError) as e:
-            raise InvalidProxiesConfigError(error=e)
-
     async def close(self):
         await self.__aexit__(None, None, None)
 
@@ -446,10 +410,6 @@ class HttpxSession:
         self, request: AWSPreparedRequest
     ) -> aiobotocore.awsrequest.AioAWSResponse:
         try:
-            # TODO [httpx]: handle proxy stuff in __aenter__
-            # proxy_url is currently used in error messages, but not in the request
-            proxy_url = self._proxy_config.proxy_url_for(request.url)
-            # proxy_headers = self._proxy_config.proxy_headers_for(request.url)
             url = request.url
             headers = request.headers
             data: io.IOBase | str | bytes | bytearray | None = request.body
@@ -515,49 +475,60 @@ class HttpxSession:
 
             return http_response
 
-        except httpx.ConnectError as e:
-            # TODO [httpx]: this passes tests ... but I hate it
-            if proxy_url:
-                raise ProxyConnectionError(
-                    proxy_url=mask_proxy_url(proxy_url), error=e
-                )
-            raise EndpointConnectionError(endpoint_url=request.url, error=e)
+        # **previous exception mapping**
+        # aiohttp.ClientSSLError -> SSLError
 
-        # old
-        except aiohttp.ClientSSLError as e:
-            raise SSLError(endpoint_url=request.url, error=e)
-        except (
-            aiohttp.ClientProxyConnectionError,
-            aiohttp.ClientHttpProxyError,
-        ) as e:
-            raise ProxyConnectionError(
-                proxy_url=mask_proxy_url(proxy_url), error=e
-            )
-        except (
-            aiohttp.ServerDisconnectedError,
-            aiohttp.ClientPayloadError,
-            aiohttp.http_exceptions.BadStatusLine,
-        ) as e:
-            raise ConnectionClosedError(
-                error=e, request=request, endpoint_url=request.url
-            )
-        except aiohttp.ServerTimeoutError as e:
-            if str(e).lower().startswith('connect'):
-                raise ConnectTimeoutError(endpoint_url=request.url, error=e)
-            else:
-                raise ReadTimeoutError(endpoint_url=request.url, error=e)
-        except (
-            aiohttp.ClientConnectorError,
-            aiohttp.ClientConnectionError,
-            socket.gaierror,
-        ) as e:
+        # aiohttp.ClientProxyConnectiorError
+        # aiohttp.ClientHttpProxyError -> ProxyConnectionError
+
+        # aiohttp.ServerDisconnectedError
+        # aiohttp.ClientPayloadError
+        # aiohttp.http_exceptions.BadStatusLine -> ConnectionClosedError
+
+        # aiohttp.ServerTimeoutError -> ConnectTimeoutError|ReadTimeoutError
+
+        # aiohttp.ClientConnectorError
+        # aiohttp.ClientConnectionError
+        # socket.gaierror -> EndpointConnectionError
+
+        # asyncio.TimeoutError -> ReadTimeoutError
+
+        # **possible httpx exception mapping**
+        # httpx.CookieConflict
+        # httpx.HTTPError
+        # * httpx.HTTPStatusError
+        # * httpx.RequestError
+        #   * httpx.DecodingError
+        #   * httpx.TooManyRedirects
+        # * httpx.TransportError
+        #   * httpx.NetworkError
+        #     * httpx.CloseError -> ConnectionClosedError
+        #     * httpx.ConnectError -> EndpointConnectionError
+        #     * httpx.ReadError
+        #     * httpx.WriteError
+        #   * httpx.ProtocolError
+        #     * httpx.LocalProtocolError -> SSLError??
+        #     * httpx.RemoteProtocolError
+        #   * httpx.ProxyError -> ProxyConnectionError
+        #   * httpx.TimeoutException
+        #     * httpx.ConnectTimeout -> ConnectTimeoutError
+        #     * httpx.PoolTimeout
+        #     * httpx.ReadTimeout -> ReadTimeoutError
+        #     * httpx.WriteTimeout
+        #   * httpx.UnsupportedProtocol
+        # * httpx.InvalidURL
+
+        except httpx.ConnectError as e:
+            raise EndpointConnectionError(endpoint_url=request.url, error=e)
+        except (socket.gaierror,) as e:
             raise EndpointConnectionError(endpoint_url=request.url, error=e)
         except asyncio.TimeoutError as e:
             raise ReadTimeoutError(endpoint_url=request.url, error=e)
         except httpx.ReadTimeout as e:
             raise ReadTimeoutError(endpoint_url=request.url, error=e)
-        # commented out during development to be able to view backtrace
-        # except Exception as e:
-        #    message = 'Exception received when sending urllib3 HTTP request'
-        #    logger.debug(message, exc_info=True)
-        #    raise HTTPClientError(error=e)
+        except NotImplementedError:
+            raise
+        except Exception as e:
+            message = 'Exception received when sending urllib3 HTTP request'
+            logger.debug(message, exc_info=True)
+            raise HTTPClientError(error=e)

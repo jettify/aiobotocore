@@ -633,6 +633,9 @@ def pytest_addoption(parser: pytest.Parser):
 
 
 def pytest_generate_tests(metafunc):
+    """Parametrize all tests to run with both aiohttp and httpx as backend.
+    This is not a super clean solution, as some tests will not differ at all with
+    different http backends."""
     metafunc.parametrize(
         '',
         [

@@ -54,10 +54,11 @@ jobs:
       run: |
         make mototest
     - name: Run unittests without httpx
-      if: matrix.python-version == '3.12'
+      if: matrix.python-version == '3.11'
       env:
         COLOR: 'yes'
       run: |
+        pip uninstall httpx
         HTTP_BACKEND='aiohttp' make mototest
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.11'

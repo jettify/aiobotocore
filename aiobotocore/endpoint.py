@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from botocore.endpoint import (
     DEFAULT_TIMEOUT,
@@ -27,8 +27,6 @@ try:
     import httpx
 except ImportError:
     httpx = None
-if TYPE_CHECKING:
-    import aiohttp
 
 
 async def convert_to_response_dict(
@@ -49,10 +47,9 @@ async def convert_to_response_dict(
         * body (string or file-like object)
 
     """
-    http_response.raw: httpx.Response | aiohttp.ClientResponse
     if httpx and isinstance(http_response.raw, httpx.Response):
         raw_headers = http_response.raw.headers.raw
-    else:
+    else:  # aiohttp.ClientResponse
         raw_headers = http_response.raw.raw_headers
     response_dict: dict[str, Any] = {
         # botocore converts keys to str, so make sure that they are in
@@ -70,7 +67,6 @@ async def convert_to_response_dict(
             'operation_name': operation_model.name,
         },
     }
-    # TODO [httpx]: figure out what to do in the other branches
     if response_dict['status_code'] >= 300:
         response_dict['body'] = await http_response.content
     elif operation_model.has_event_stream_output:
