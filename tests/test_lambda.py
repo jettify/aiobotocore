@@ -5,7 +5,11 @@ import zipfile
 
 # Third Party
 import botocore.client
-import httpx
+
+try:
+    import httpx
+except ImportError:
+    httpx = None
 import pytest
 
 
@@ -68,7 +72,7 @@ async def test_run_lambda(
         Payload=json.dumps({"hello": "world"}),
     )
 
-    if isinstance(invoke_response['Payload'], httpx.Response):
+    if httpx and isinstance(invoke_response['Payload'], httpx.Response):
         data = await invoke_response['Payload'].aread()
     else:
         async with invoke_response['Payload'] as stream:

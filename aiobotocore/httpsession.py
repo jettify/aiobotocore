@@ -4,7 +4,7 @@ import asyncio
 import io
 import os
 import socket
-from typing import IO, TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import aiohttp  # lgtm [py/import-and-import-from]
 import botocore
@@ -329,15 +329,14 @@ class HttpxSession:
         else:
             self._connector_args = connector_args
 
-        # TODO
         if 'use_dns_cache' in self._connector_args:
             raise NotImplementedError(
                 "DNS caching is not implemented by httpx. https://github.com/encode/httpx/discussions/2211"
             )
         if 'force_close' in self._connector_args:
-            raise NotImplementedError("...")
+            raise NotImplementedError("Not supported with httpx as backend.")
         if 'resolver' in self._connector_args:
-            raise NotImplementedError("...")
+            raise NotImplementedError("Not supported with httpx as backend.")
 
         self._max_pool_connections = max_pool_connections
         self._socket_options = socket_options
@@ -351,30 +350,29 @@ class HttpxSession:
 
         # TODO [httpx]: clean up
         ssl_context: SSLContext | None = None
-        self._verify: bool | str | SSLContext
-        if verify:
-            if 'ssl_context' in self._connector_args:
-                ssl_context = cast(
-                    'SSLContext', self._connector_args['ssl_context']
-                )
-            elif proxies:
-                proxies_settings = self._proxy_config.settings
-                ssl_context = self._setup_proxy_ssl_context(proxies_settings)
-                # TODO: add support for
-                #    proxies_settings.get('proxy_use_forwarding_for_https')
-            else:
-                ssl_context = self._get_ssl_context()
+        self._verify: bool | str | SSLContext = verify
+        if not verify:
+            return
+        if 'ssl_context' in self._connector_args:
+            self._verify = cast(
+                'SSLContext', self._connector_args['ssl_context']
+            )
+            return
 
-                # inline self._setup_ssl_cert
-                ca_certs = get_cert_path(verify)
-                if ca_certs:
-                    ssl_context.load_verify_locations(ca_certs, None, None)
-            if ssl_context is None:
-                self._verify = True
-            else:
-                self._verify = ssl_context
+        if proxies:
+            proxies_settings = self._proxy_config.settings
+            ssl_context = self._setup_proxy_ssl_context(proxies_settings)
+            # TODO: add support for
+            #    proxies_settings.get('proxy_use_forwarding_for_https')
         else:
-            self._verify = False
+            ssl_context = self._get_ssl_context()
+
+            # inline self._setup_ssl_cert
+            ca_certs = get_cert_path(verify)
+            if ca_certs:
+                ssl_context.load_verify_locations(ca_certs, None, None)
+        if ssl_context is not None:
+            self._verify = ssl_context
 
     async def __aenter__(self):
         assert not self._session
@@ -454,22 +452,15 @@ class HttpxSession:
             # proxy_headers = self._proxy_config.proxy_headers_for(request.url)
             url = request.url
             headers = request.headers
-            data: str | bytes | bytearray | IO[bytes] | IO[
-                str
-            ] | None = request.body
+            data: io.IOBase | str | bytes | bytearray | None = request.body
 
+            # currently no support for BOTO_EXPERIMENTAL__ADD_PROXY_HOST_HEADER
             if ensure_boolean(
                 os.environ.get('BOTO_EXPERIMENTAL__ADD_PROXY_HOST_HEADER', '')
             ):
-                # This is currently an "experimental" feature which provides
-                # no guarantees of backwards compatibility. It may be subject
-                # to change or removal in any patch version. Anyone opting in
-                # to this feature should strictly pin botocore.
-
-                # TODO [httpx]: ...
-                ...
-                # host = urlparse(request.url).hostname
-                # proxy_headers['host'] = host
+                raise NotImplementedError(
+                    'httpx implementation of aiobotocore does not (currently) support proxies'
+                )
 
             headers_ = CIMultiDict(
                 (z[0], _text(z[1], encoding='utf-8')) for z in headers.items()
@@ -478,33 +469,22 @@ class HttpxSession:
             # https://github.com/boto/botocore/issues/1255
             headers_['Accept-Encoding'] = 'identity'
 
-            content: bytes | str | None = None
+            content: bytes | bytearray | str | None = None
+            # TODO: test that sends a bytearray
 
-            # previously data was wrapped in _IOBaseWrapper
-            # github.com/aio-libs/aiohttp/issues/1907
-            # I haven't researched whether that's relevant with httpx.
-
-            # TODO [httpx]: obviously clean this up
             if isinstance(data, io.IOBase):
                 # TODO [httpx]: httpx really wants an async iterable that is not also a
-                # sync iterable. Seems like there should be an easy answer, but I just
-                # convert it to bytes for now.
+                # sync iterable (??). Seems like there should be an easy answer, but I
+                # just convert it to bytes for now.
                 k = data.readlines()
                 if len(k) == 0:
-                    content = b''
+                    content = b''  # TODO: uncovered
                 elif len(k) == 1:
                     content = k[0]
                 else:
-                    assert False
-            elif data is None:
-                content = data
-            # no test checks bytearray, which request.body can give
-            elif isinstance(data, bytes):
-                content = data
-            elif isinstance(data, str):
-                content = data
+                    assert False  # TODO: uncovered
             else:
-                raise ValueError("invalid type for data")
+                content = data
 
             assert self._session
 

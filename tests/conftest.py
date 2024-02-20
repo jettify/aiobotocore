@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import random
+import re
 import string
 import tempfile
 from contextlib import ExitStack
@@ -11,7 +12,11 @@ from typing import TYPE_CHECKING, Literal
 from unittest.mock import patch
 
 import aiohttp
-import httpx
+
+try:
+    import httpx
+except ImportError:
+    http = None
 
 # Third Party
 import pytest
@@ -145,20 +150,20 @@ def s3_verify():
 
 @pytest.fixture
 def current_http_backend(request) -> Literal['httpx', 'aiohttp']:
-    # if http_session_cls is specified in config_kwargs, use the appropriate library
     for mark in request.node.iter_markers("config_kwargs"):
         assert len(mark.args) == 1
         assert isinstance(mark.args[0], dict)
         http_session_cls = mark.args[0].get('http_session_cls')
         if http_session_cls is HttpxSession:
             return 'httpx'
-        elif http_session_cls is AIOHTTPSession:
+        # since aiohttp is default we don't test explicitly setting it
+        elif http_session_cls is AIOHTTPSession:  # pragma: no cover
             return 'aiohttp'
     return 'aiohttp'
 
 
 def read_kwargs(node: Node) -> dict[str, object]:
-    config_kwargs = {}
+    config_kwargs: dict[str, object] = {}
     for mark in node.iter_markers("config_kwargs"):
         assert not mark.kwargs, config_kwargs
         assert len(mark.args) == 1
@@ -540,6 +545,7 @@ def create_multipart_upload(request, s3_client, bucket_name, event_loop):
 @pytest.fixture
 async def aio_session(current_http_backend: Literal['httpx', 'aiohttp']):
     if current_http_backend == 'httpx':
+        assert httpx is not None
         async with httpx.AsyncClient() as client:
             yield client
     else:
@@ -616,6 +622,16 @@ async def exit_stack():
         yield es
 
 
+def pytest_addoption(parser: pytest.Parser):
+    parser.addoption(
+        "--http-backend",
+        default='aiohttp',
+        choices=['aiohttp', 'httpx', 'all'],
+        required=False,
+        help='Specify http backend to run tests against.',
+    )
+
+
 def pytest_generate_tests(metafunc):
     metafunc.parametrize(
         '',
@@ -629,6 +645,26 @@ def pytest_generate_tests(metafunc):
             ),
         ],
     )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items):
+    """Mark parametrized tests for skipping in case the corresponding backend is not enabled."""
+    http_backend = config.getoption("--http-backend")
+    if http_backend == 'all':
+        return
+    if http_backend == 'aiohttp':
+        ignore_backend = 'httpx'
+    else:
+        assert (
+            httpx is not None
+        ), "Cannot run httpx as backend if it's not installed."
+        ignore_backend = 'aiohttp'
+    backend_skip = pytest.mark.skip(
+        reason='Selected not to run with --http-backend'
+    )
+    for item in items:
+        if re.match(rf'.*\[.*{ignore_backend}.*\]', item.name):
+            item.add_marker(backend_skip)
 
 
 pytest_plugins = ['tests.mock_server']

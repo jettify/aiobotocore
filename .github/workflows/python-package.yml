@@ -53,6 +53,12 @@ jobs:
         COLOR: 'yes'
       run: |
         make mototest
+    - name: Run unittests without httpx
+      if: matrix.python-version == '3.12'
+      env:
+        COLOR: 'yes'
+      run: |
+        HTTP_BACKEND='aiohttp' make mototest
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.11'
       uses: codecov/codecov-action@v3.1.5

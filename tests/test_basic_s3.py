@@ -6,7 +6,11 @@ from typing import Callable, Literal
 
 import aioitertools
 import botocore.retries.adaptive
-import httpx
+
+try:
+    import httpx
+except ImportError:
+    httpx = None
 import pytest
 
 import aiobotocore.retries.adaptive
@@ -205,7 +209,7 @@ async def test_can_get_and_put_object(
 ):
     await create_object('foobarbaz', body='body contents')
     resp = await s3_client.get_object(Bucket=bucket_name, Key='foobarbaz')
-    if isinstance(resp['Body'], httpx.Response):
+    if httpx and isinstance(resp['Body'], httpx.Response):
         data = await resp['Body'].aread()
         # note that calling `aclose()` is redundant, httpx will auto-close when the
         # data is fully read
@@ -278,7 +282,7 @@ async def test_get_object_stream_wrapper(
     await create_object('foobarbaz', body='body contents')
     response = await s3_client.get_object(Bucket=bucket_name, Key='foobarbaz')
     body = response['Body']
-    if isinstance(body, httpx.Response):
+    if httpx and isinstance(body, httpx.Response):
         byte_iterator = body.aiter_raw(1)
         chunk1 = await byte_iterator.__anext__()
         chunk2 = b""
@@ -301,7 +305,7 @@ async def test_get_object_stream_context(
     await create_object('foobarbaz', body='body contents')
     response = await s3_client.get_object(Bucket=bucket_name, Key='foobarbaz')
     # httpx does not support context manager
-    if isinstance(response['Body'], httpx.Response):
+    if httpx and isinstance(response['Body'], httpx.Response):
         data = await response['Body'].aread()
     else:
         async with response['Body'] as stream:
@@ -404,7 +408,7 @@ async def test_unicode_key_put_list(s3_client, bucket_name, create_object):
     assert len(parsed['Contents']) == 1
     assert parsed['Contents'][0]['Key'] == key_name
     parsed = await s3_client.get_object(Bucket=bucket_name, Key=key_name)
-    if isinstance(parsed['Body'], httpx.Response):
+    if httpx and isinstance(parsed['Body'], httpx.Response):
         data = await parsed['Body'].aread()
         await parsed['Body'].aclose()
     else:
@@ -477,7 +481,7 @@ async def test_copy_with_quoted_char(s3_client, create_object, bucket_name):
 
     # Now verify we can retrieve the copied object.
     resp = await s3_client.get_object(Bucket=bucket_name, Key=key_name2)
-    if isinstance(resp['Body'], httpx.Response):
+    if httpx and isinstance(resp['Body'], httpx.Response):
         data = await resp['Body'].aread()
         await resp['Body'].aclose()
     else:
@@ -501,7 +505,7 @@ async def test_copy_with_query_string(s3_client, create_object, bucket_name):
 
     # Now verify we can retrieve the copied object.
     resp = await s3_client.get_object(Bucket=bucket_name, Key=key_name2)
-    if isinstance(resp['Body'], httpx.Response):
+    if httpx and isinstance(resp['Body'], httpx.Response):
         data = await resp['Body'].aread()
         await resp['Body'].aclose()
     else:
@@ -525,7 +529,7 @@ async def test_can_copy_with_dict_form(s3_client, create_object, bucket_name):
 
     # Now verify we can retrieve the copied object.
     resp = await s3_client.get_object(Bucket=bucket_name, Key=key_name2)
-    if isinstance(resp['Body'], httpx.Response):
+    if httpx and isinstance(resp['Body'], httpx.Response):
         data = await resp['Body'].aread()
         await resp['Body'].aclose()
     else:
@@ -554,7 +558,7 @@ async def test_can_copy_with_dict_form_with_version(
 
     # Now verify we can retrieve the copied object.
     resp = await s3_client.get_object(Bucket=bucket_name, Key=key_name2)
-    if isinstance(resp['Body'], httpx.Response):
+    if httpx and isinstance(resp['Body'], httpx.Response):
         data = await resp['Body'].aread()
         await resp['Body'].aclose()
     else:
@@ -599,7 +603,7 @@ async def test_presign_with_existing_query_string_values(
         'get_object', Params=params
     )
     # Try to retrieve the object using the presigned url.
-    if isinstance(aio_session, httpx.AsyncClient):
+    if httpx and isinstance(aio_session, httpx.AsyncClient):
         async with aio_session.stream("GET", presigned_url) as resp:
             data = await resp.aread()
             headers = resp.headers
@@ -633,7 +637,7 @@ async def test_presign_sigv4(
     ), msg
 
     # Try to retrieve the object using the presigned url.
-    if isinstance(aio_session, httpx.AsyncClient):
+    if httpx and isinstance(aio_session, httpx.AsyncClient):
         async with aio_session.stream("GET", presigned_url) as resp:
             data = await resp.aread()
     else:
@@ -654,7 +658,7 @@ async def test_can_follow_signed_url_redirect(
     resp = await alternative_s3_client.get_object(
         Bucket=bucket_name, Key='foobarbaz'
     )
-    if isinstance(resp['Body'], httpx.Response):
+    if httpx and isinstance(resp['Body'], httpx.Response):
         data = await resp['Body'].aread()
         await resp['Body'].aclose()
     else:

@@ -1,6 +1,8 @@
 # Some simple testing tasks (sorry, UNIX only).
 
 FLAGS=
+# ?= is assignment conditional on it not being set
+HTTP_BACKEND?='all'
 
 pre-commit flake: checkrst
 	pre-commit run --all
@@ -22,7 +24,7 @@ cov cover coverage: pre-commit
 mototest:
 	docker pull alpine
 	docker pull lambci/lambda:python3.8
-	BOTO_CONFIG=/dev/null python -Wd -X tracemalloc=5 -X faulthandler -m pytest -vv -m moto -n auto --cov-report term --cov-report html --cov-report xml --cov=aiobotocore --cov=tests --log-cli-level=DEBUG aiobotocore tests
+	BOTO_CONFIG=/dev/null python -Wd -X tracemalloc=5 -X faulthandler -m pytest -vv -m moto -n auto --cov-report term --cov-report html --cov-report xml --cov=aiobotocore --cov=tests --log-cli-level=DEBUG --http-backend=$(HTTP_BACKEND) aiobotocore tests
 	@echo "open file://`pwd`/htmlcov/index.html"
 
 clean:
