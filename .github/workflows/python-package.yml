@@ -59,7 +59,7 @@ jobs:
         COLOR: 'yes'
       run: |
         pip uninstall --yes httpx
-        HTTP_BACKEND='aiohttp' make mototest
+        HTTP_BACKEND='aiohttp' FLAGS='--cov-append' make mototest
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.11'
       uses: codecov/codecov-action@v3.1.5
