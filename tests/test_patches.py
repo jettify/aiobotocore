@@ -185,11 +185,9 @@ _API_DIGESTS = {
         'f09731451ff6ba0645dc82e5c7948dfbf781e025',
     },
     BaseClient.get_paginator: {
-        '3531d5988aaaf0fbb3885044ccee1a693ec2608b',
         '1c38079de68ccd43a5a06e36b1a47ec62233a7c2',
     },
     BaseClient.get_waiter: {
-        '44f0473d993d49ac7502984a7ccee3240b088404',
         '4a4aeabe53af25d3737204187a31f930230864b4',
     },
     BaseClient.__getattr__: {'3ec17f468f50789fa633d6041f40b66a2f593e77'},
@@ -266,10 +264,10 @@ _API_DIGESTS = {
     ContainerProvider.__init__: {'ea6aafb2e12730066af930fb5a27f7659c1736a1'},
     ContainerProvider.load: {'57c35569050b45c1e9e33fcdb3b49da9e342fdcf'},
     ContainerProvider._retrieve_or_fail: {
-        '7c14f1cdee07217f847a71068866bdd10c3fa0fa'
+        'c99153a4c68927810a3edde09ee98c5ba33d3697'
     },
     ContainerProvider._create_fetcher: {
-        '935ae28fdb1c76f419523d4030265f8c4d9d0b00'
+        'a921ee40b9b4779f238adcf369a3757b19857fc7'
     },
     InstanceMetadataProvider.load: {
         '15becfc0373ccfbc1bb200bd6a34731e61561d06'

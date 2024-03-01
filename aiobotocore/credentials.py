@@ -914,8 +914,7 @@ class AioContainerProvider(ContainerProvider):
             full_uri = self._fetcher.full_url(self._environ[self.ENV_VAR])
         else:
             full_uri = self._environ[self.ENV_VAR_FULL]
-        headers = self._build_headers()
-        fetcher = self._create_fetcher(full_uri, headers)
+        fetcher = self._create_fetcher(full_uri)
         creds = await fetcher()
         return AioRefreshableCredentials(
             access_key=creds['access_key'],
@@ -926,9 +925,10 @@ class AioContainerProvider(ContainerProvider):
             refresh_using=fetcher,
         )
 
-    def _create_fetcher(self, full_uri, headers):
+    def _create_fetcher(self, full_uri, *args, **kwargs):
         async def fetch_creds():
             try:
+                headers = self._build_headers()
                 response = await self._fetcher.retrieve_full_uri(
                     full_uri, headers=headers
                 )
