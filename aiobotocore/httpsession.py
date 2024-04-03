@@ -17,7 +17,6 @@ from aiohttp import (
     ServerDisconnectedError,
     ServerTimeoutError,
 )
-from aiohttp.client import URL
 from botocore.awsrequest import AWSPreparedRequest
 from botocore.httpsession import (
     MAX_POOL_CONNECTIONS,
@@ -218,7 +217,6 @@ class AIOHTTPSession:
             if isinstance(data, io.IOBase):
                 data = _IOBaseWrapper(data)
 
-            url = URL(url, encoded=True)
             response = await self._session.request(
                 request.method,
                 url=url,
@@ -448,11 +446,20 @@ class HttpxSession:
 
             assert self._session
 
+            # The target gets used as the HTTP target instead of the URL path
+            # it does not get normalized or otherwise processed, which is important
+            # since arbitrary dots and slashes are valid as key paths.
+            # See test_basic_s3.test_non_normalized_key_paths
+            # This way of using it is currently ~undocumented, but recommended in
+            # https://github.com/encode/httpx/discussions/1805#discussioncomment-8975989
+            extensions = {"target": bytes(url, encoding='utf-8')}
+
             httpx_request = self._session.build_request(
                 method=request.method,
                 url=url,
                 headers=headers,
                 content=content,
+                extensions=extensions,
             )
             # auth, follow_redirects
             response = await self._session.send(httpx_request, stream=True)

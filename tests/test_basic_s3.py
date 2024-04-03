@@ -452,14 +452,7 @@ async def test_non_normalized_key_paths(
     bucket = await s3_client.list_objects(Bucket=bucket_name)
     bucket_contents = bucket['Contents']
     assert len(bucket_contents) == 1
-
-    # TODO: I don't know where the key normalization happens, if it's a problem that
-    # httpx doesn't normalize, or how to fix it if so.
-    key = bucket_contents[0]['Key']
-    if current_http_backend == 'httpx':
-        assert key == 'key./name'
-    else:
-        assert key == 'key./././name'
+    assert bucket_contents[0]['Key'] == 'key./././name'
 
 
 @pytest.mark.skipif(True, reason='Not supported')
