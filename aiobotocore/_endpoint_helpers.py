@@ -19,21 +19,24 @@ _aiohttp_retryable_exceptions = [
     asyncio.TimeoutError,
 ]
 
-if httpx is not None:
-    # TODO: Wild guesses after looking at https://pydoc.dev/httpx/latest/classIndex.html
-    # somebody with more network and/or httpx knowledge should revise this list.
-    _aiohttp_retryable_exceptions.extend(
-        (httpx.NetworkError, httpx.ConnectTimeout)
-    )
 
-
-# TODO [httpx]: determine retryable exceptions
 botocore.retryhandler.EXCEPTION_MAP['GENERAL_CONNECTION_ERROR'].extend(
     _aiohttp_retryable_exceptions
 )
 
+if httpx is not None:
+    # TODO: Wild guesses after looking at https://pydoc.dev/httpx/latest/classIndex.html
+    # somebody with more network and/or httpx knowledge should revise this list.
+    _httpx_retryable_exceptions = [
+        httpx.NetworkError,
+        httpx.ConnectTimeout,
+    ]
+    botocore.retryhandler.EXCEPTION_MAP['GENERAL_CONNECTION_ERROR'].extend(
+        _httpx_retryable_exceptions
+    )
 
-def _text(s, encoding='utf-8', errors='strict'):
+
+def _text(s, encoding='utf-8', errors='strict') -> str:
     if isinstance(s, bytes):
         return s.decode(encoding, errors)
     return s  # pragma: no cover

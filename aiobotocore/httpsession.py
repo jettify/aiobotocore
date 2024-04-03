@@ -401,7 +401,7 @@ class HttpxSession:
             ssl_context.load_cert_chain(self._cert_file, self._key_file)
         return ssl_context
 
-    async def close(self):
+    async def close(self) -> None:
         await self.__aexit__(None, None, None)
 
     async def send(
