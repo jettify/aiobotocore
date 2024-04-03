@@ -18,7 +18,6 @@ line-length = 79
 skip_string_normalization = true
 
 [tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
+exclude_also = [
     "if TYPE_CHECKING",
 ]

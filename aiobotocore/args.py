@@ -4,10 +4,8 @@ import botocore.parsers
 import botocore.serialize
 from botocore.args import ClientArgsCreator
 
-from aiobotocore.httpsession import AIOHTTPSession
-
 from .config import AioConfig
-from .endpoint import AioEndpointCreator
+from .endpoint import DEFAULT_HTTP_SESSION_CLS, AioEndpointCreator
 from .regions import AioEndpointRulesetResolver
 from .signers import AioRequestSigner
 
@@ -72,7 +70,7 @@ class AioClientArgsCreator(ClientArgsCreator):
             http_session_cls = client_config.http_session_cls
         else:
             connector_args = None
-            http_session_cls = AIOHTTPSession
+            http_session_cls = DEFAULT_HTTP_SESSION_CLS
 
         new_config = AioConfig(connector_args, **config_kwargs)
         endpoint_creator = AioEndpointCreator(event_emitter)

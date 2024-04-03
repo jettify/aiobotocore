@@ -6,7 +6,7 @@ from botocore.config import Config
 from botocore.exceptions import ParamValidationError, ReadTimeoutError
 
 from aiobotocore.config import AioConfig
-from aiobotocore.httpsession import HttpxSession
+from aiobotocore.httpsession import AIOHTTPSession, HttpxSession
 from aiobotocore.session import AioSession, get_session
 from tests.mock_server import AIOServer
 
@@ -150,3 +150,27 @@ def test_merge():
     assert isinstance(new_config, AioConfig)
     assert new_config is not config
     assert new_config is not other_config
+
+
+# Check that it's possible to specify custom http_session_cls
+@pytest.mark.moto
+@pytest.mark.asyncio
+async def test_config_http_session_cls():
+    class SuccessExc(Exception):
+        ...
+
+    class MyHttpSession(AIOHTTPSession):
+        async def send(self, request):
+            raise SuccessExc
+
+    config = AioConfig(http_session_cls=MyHttpSession)
+    session = AioSession()
+    async with AIOServer() as server, session.create_client(
+        's3',
+        config=config,
+        endpoint_url=server.endpoint_url,
+        aws_secret_access_key='xxx',
+        aws_access_key_id='xxx',
+    ) as s3_client:
+        with pytest.raises(SuccessExc):
+            await s3_client.get_object(Bucket='foo', Key='bar')

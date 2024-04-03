@@ -1,6 +1,14 @@
 Changes
 -------
 
+2.12.2 (2024-04-01)
+^^^^^^^^^^^^^^^^^^^
+* expose configuration of ``http_session_cls`` in ``AioConfig``
+
+2.12.1 (2024-03-04)
+^^^^^^^^^^^^^^^^^^^
+* fix use of proxies #1070
+
 2.12.0 (2024-02-28)
 ^^^^^^^^^^^^^^^^^^^
 * bump botocore dependency specification

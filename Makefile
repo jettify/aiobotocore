@@ -1,8 +1,8 @@
 # Some simple testing tasks (sorry, UNIX only).
 
-FLAGS?=
-# ?= is assignment conditional on it not being set
+# ?= is conditional assign, so users can pass options on the CLI instead of manually editing this file
 HTTP_BACKEND?='all'
+FLAGS?=
 
 pre-commit flake: checkrst
 	pre-commit run --all

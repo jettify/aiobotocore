@@ -62,7 +62,7 @@ jobs:
         HTTP_BACKEND='aiohttp' FLAGS='--cov-append' make mototest
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.11'
-      uses: codecov/codecov-action@v3.1.5
+      uses: codecov/codecov-action@v4.1.0
       with:
         token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
         files: ./coverage.xml

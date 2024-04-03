@@ -98,9 +98,7 @@ async def test_idmsfetcher_get_token_success():
 @pytest.mark.asyncio
 async def test_idmsfetcher_get_token_not_found():
     session = fake_aiohttp_session(
-        [
-            ('blah', 404),
-        ]
+        ('blah', 404),
     )
 
     fetcher = utils.AioIMDSFetcher(
@@ -114,9 +112,7 @@ async def test_idmsfetcher_get_token_not_found():
 @pytest.mark.asyncio
 async def test_idmsfetcher_get_token_bad_request():
     session = fake_aiohttp_session(
-        [
-            ('blah', 400),
-        ]
+        ('blah', 400),
     )
 
     fetcher = utils.AioIMDSFetcher(

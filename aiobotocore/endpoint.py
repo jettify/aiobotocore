@@ -28,6 +28,8 @@ try:
 except ImportError:
     httpx = None
 
+DEFAULT_HTTP_SESSION_CLS = AIOHTTPSession
+
 
 async def convert_to_response_dict(
     http_response: Response, operation_model
@@ -313,7 +315,7 @@ class AioEndpointCreator(EndpointCreator):
         response_parser_factory=None,
         timeout=DEFAULT_TIMEOUT,
         max_pool_connections=MAX_POOL_CONNECTIONS,
-        http_session_cls=AIOHTTPSession,
+        http_session_cls=DEFAULT_HTTP_SESSION_CLS,
         proxies=None,
         socket_options=None,
         client_cert=None,
