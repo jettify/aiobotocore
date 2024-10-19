@@ -21,25 +21,7 @@ dill~=0.3.3  # Requirement for tests/test_patches.py
 docker~=7.1
 moto[server,s3,sqs,awslambda,dynamodb,cloudformation,sns,batch,ec2,rds]~=4.2.9
 pre-commit~=3.5.0
-<<<<<<< HEAD
-pytest==7.4.0
-pytest-cov==4.1.0
-pytest-asyncio~=0.21.1
-pytest-xdist==3.3.1
-setuptools==67.8.0;python_version>="3.12"
-
-# this is needed for test_patches
-dill~=0.3.3
-
-# this is needed when running setup.py check -rms
-Pygments
-
-httpx
-# needed for tests.mock_server and tests.moto_server
-aiohttp${AIOHTTP_VERSION}
-
--e .[awscli,boto3]
-=======
 pytest-asyncio~=0.23.8
 tomli; python_version < "3.11"  # Requirement for tests/test_version.py
->>>>>>> origin/master
+
+httpx
