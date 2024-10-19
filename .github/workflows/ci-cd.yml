@@ -1,0 +1,124 @@
+---
+name: CI/CD
+
+on:
+  push:
+    branches:
+    - master
+    tags:
+    - >-
+      [0-9]+.[0-9]+.[0-9]+
+  pull_request:
+    branches:
+    - master
+    - >-
+      [0-9].[0-9]+.[0-9]+
+
+env:
+  FORCE_COLOR: 1
+
+jobs:
+  build:
+    name: Build distribution 📦
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.x
+    - name: Install build dependencies
+      run: python -m pip install build twine
+    - name: Build distribution 📦
+      run: python -m build
+    - name: Check distribution 📦
+      run: python -m twine check --strict dist/*
+    - name: Upload distribution 📦
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+  test:
+    name: Test Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+        - 3.8
+        - 3.9
+        - >-
+          3.10
+        - 3.11
+        - 3.12
+        - 3.13
+      fail-fast: false
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        allow-prereleases: true
+    - name: Lock and sync dependencies
+      run: |
+        python -m pip install -U pip pip-tools
+        pip-compile --all-extras pyproject.toml requirements-dev.in
+        pip-sync
+        pip install -e ".[awscli,boto3]"
+    - name: Run pre-commit hooks
+      run: |
+        make pre-commit
+    - name: Run unittests
+      env:
+        COLOR: 'yes'
+      run: |
+        make mototest
+    - name: Run unittests without httpx
+      if: matrix.python-version == '3.11'
+      env:
+        COLOR: 'yes'
+      run: |
+        pip uninstall --yes httpx
+        HTTP_BACKEND='aiohttp' FLAGS='--cov-append' make mototest
+    - name: Upload coverage to Codecov
+      if: matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v4.5.0
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}  # not required for public repos
+        files: ./coverage.xml
+        flags: unittests  # optional
+        name: codecov-umbrella  # optional
+        fail_ci_if_error: true  # optional (default = false)
+        verbose: true  # optional (default = false)
+
+  pypi-publish:
+    name: Publish Python 🐍 distribution 📦 to PyPI
+    if: github.ref_type == 'tag'  # only publish on tag pushes
+    needs:
+    - build
+    - test
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/aiobotocore/${{ github.ref_name }}
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      id-token: write
+    timeout-minutes: 5
+
+    steps:
+    - name: Download distribution 📦
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Publish distribution 📦 to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1

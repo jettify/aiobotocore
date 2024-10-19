@@ -2,6 +2,7 @@
 """
 aiobotocore SQS Producer Example
 """
+
 import asyncio
 import random
 import sys

@@ -1,8 +1,8 @@
+from contextlib import AsyncExitStack, asynccontextmanager
+
 from botocore.stub import Stubber
 
 import aiobotocore.session
-from aiobotocore._helpers import asynccontextmanager
-from tests._helpers import AsyncExitStack
 
 
 class StubbedSession(aiobotocore.session.AioSession):

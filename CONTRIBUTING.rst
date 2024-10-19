@@ -14,7 +14,7 @@ First of all, clone the repository::
     $ git clone git@github.com:aio-libs/aiobotocore.git
 
 Create virtualenv with at least python3.8 (older versions are not supported).
-For example, using *virtualenvwrapper* commands could look like::
+For example, using ``virtualenvwrapper`` commands could look like::
 
    $ cd aiobotocore
    $ mkvirtualenv --python=`which python3.8` aiobotocore
@@ -23,8 +23,9 @@ For example, using *virtualenvwrapper* commands could look like::
 After that, please install libraries required for development::
 
     $ pip install pip-tools
-    $ pip-compile requirements-dev.in
-    $ pip-sync requirements-dev.txt
+    $ pip-compile --all-extras pyproject.toml requirements-dev.in
+    $ pip-sync
+    $ pip install -e ".[awscli,boto3]"
 
 Congratulations, you are ready to run the test suite::
 
@@ -37,7 +38,7 @@ To run individual use following command::
 
 Reporting an Issue
 ------------------
-If you have found issue with `aiobotocore` please do
+If you have found issue with ``aiobotocore`` please do
 not hesitate to file an issue on the GitHub_ project. When filing your
 issue please make sure you can express the issue with a reproducible test
 case.
@@ -47,8 +48,8 @@ that you can include. We never know what information will be pertinent when
 trying narrow down the issue. Please include at least the following
 information:
 
-* Version of `aiobotocore` and `python`.
-* Version fo `botocore`.
+* Version of ``aiobotocore`` and ``python``.
+* Version of ``botocore``.
 * Platform you're running on (OS X, Linux).
 
 
@@ -56,7 +57,7 @@ Background and Implementation
 -----------------------------
 aiobotocore adds async functionality to botocore by replacing certain critical
 methods in botocore classes with async versions.  The best way to see how this
-works is by working backwards from `AioEndpoint._request`.  Because of this tight
+works is by working backwards from ``AioEndpoint._request``.  Because of this tight
 integration aiobotocore is typically version locked to a particular release of
 botocore.
 
@@ -68,16 +69,16 @@ botocore calls eventually called.
 
 The best way I've seen to upgrade botocore support is by performing the following:
 
-1. Download sources of the release of botocore you're trying to upgrade to, and the version of botocore that aiobotocore is currently locked to (see setup.py) and do a folder based file comparison of the botocore folders (tools like DiffMerge are nice).
-2. Manually apply the relevant changes to their aiobotocore equivalent(s). Note that sometimes new functions are added which will need to be overridden (like `__enter__` -> `__aenter__`)
-3. Update the "extras" in setup.py to the versions which match the botocore version you are targeting.
+1. Download sources of the release of botocore you're trying to upgrade to, and the version of botocore that aiobotocore is currently locked to (see :file:`pyproject.toml`) and do a folder based file comparison of the botocore folders (tools like DiffMerge are nice).
+2. Manually apply the relevant changes to their aiobotocore equivalent(s). Note that sometimes new functions are added which will need to be overridden (like ``__enter__`` -> ``__aenter__``)
+3. Update the "project.optional-dependencies" in :file:`pyproject.toml` to the versions which match the botocore version you are targeting.
 4. Now do a directory diff between aiobotocore and your target version botocore directory to ensure the changes were propagated.
 
 See next section describing types of changes we must validate and support.
 
 Hashes of Botocore Code (important)
 -----------------------------------
-Because of the way aiobotocore is implemented (see Background section), it is very tightly coupled with botocore.  The validity of these couplings are enforced in test_patches.py.  We also depend on some private properties in aiohttp, and because of this have entries in test_patches.py for this too.
+Because of the way aiobotocore is implemented (see Background section), it is very tightly coupled with botocore.  The validity of these couplings are enforced in :file:`test_patches.py`.  We also depend on some private properties in aiohttp, and because of this have entries in :file:`test_patches.py` for this too.
 
 These patches are important to catch cases where botocore functionality was added/removed and needs to be reflected in our overridden methods.  Changes include:
 
@@ -85,14 +86,14 @@ These patches are important to catch cases where botocore functionality was adde
 * classes/methods being moved to new files
 * bodies of overridden methods updated
 
-To ensure we catch and reflect this changes in aiobotocore, the test_patches.py file has the hashes of the parts of botocore we need to manually validate changes in.
+To ensure we catch and reflect this changes in aiobotocore, the :file:`test_patches.py` file has the hashes of the parts of botocore we need to manually validate changes in.
 
-test_patches.py file needs to be updated in two scenarios:
+:file:`test_patches.py` file needs to be updated in two scenarios:
 
-1. You're bumping the supported botocore/aiohttp version. In this case a failure in test_patches.py means you need to validate the section of code in aiohttp/botocore that no longer matches the hash in test_patches.py to see if any changes need to be reflected in aiobotocore which overloads, on depends on the code which triggered the hash mismatch.  This could there are new parameters we weren't expecting, parameters that are no longer passed to said overriden function(s), or an overridden function which calls a modified botocore method.  If this is a whole class collision the checks will be more extensive.
+1. You're bumping the supported botocore/aiohttp version. In this case a failure in :file:`test_patches.py` means you need to validate the section of code in aiohttp/botocore that no longer matches the hash in test_patches.py to see if any changes need to be reflected in aiobotocore which overloads, on depends on the code which triggered the hash mismatch.  This could there are new parameters we weren't expecting, parameters that are no longer passed to said overridden function(s), or an overridden function which calls a modified botocore method.  If this is a whole class collision the checks will be more extensive.
 2. You're implementing missing aiobotocore functionality, in which case you need to add entries for all the methods in botocore/aiohttp which you are overriding or depending on private functionality.  For special cases, like when private attributes are used, you may have to hash the whole class so you can catch any case where the private property is used/updated to ensure it matches our expectations.
 
-After you've validated the changes, you can update the hash in test_patches.py.
+After you've validated the changes, you can update the hash in :file:`test_patches.py`.
 
 One would think we could just write enough unittests to catch all cases, however, this is impossible for two reasons:
 

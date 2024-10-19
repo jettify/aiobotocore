@@ -27,26 +27,19 @@
 #
 # needs_sphinx = '1.0'
 
-import pathlib
+import importlib.metadata
 import re
 
-_docs_path = pathlib.Path(__file__).parent
-_version_path = _docs_path / '../aiobotocore/__init__.py'
-
-
-with _version_path.open() as fp:
-    try:
-        _version_info = re.search(
-            r"^__version__ = '"
-            r"(?P<major>\d+)"
-            r"\.(?P<minor>\d+)"
-            r"\.(?P<patch>\d+)"
-            r"(?P<tag>.*)?'$",
-            fp.read(),
-            re.M,
-        ).groupdict()
-    except IndexError:
-        raise RuntimeError('Unable to determine version.')
+try:
+    _version_info = re.fullmatch(
+        r"(?P<major>\d+)"
+        r"\.(?P<minor>\d+)"
+        r"\.(?P<patch>\d+)"
+        r"(?P<tag>.*)?",
+        importlib.metadata.version('aiobotocore'),
+    ).groupdict()
+except IndexError:
+    raise RuntimeError('Unable to determine version.')
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
@@ -190,4 +183,6 @@ texinfo_documents = [
 
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/': None}
+intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
+
+default_role = 'any'

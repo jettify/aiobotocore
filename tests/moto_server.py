@@ -128,7 +128,7 @@ class MotoService:
                     async with session.get(
                         self.endpoint_url + '/static',
                         timeout=_CONNECT_TIMEOUT,
-                        verify_ssl=False,
+                        ssl=False,
                     ):
                         pass
                     break

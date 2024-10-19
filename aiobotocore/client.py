@@ -1,3 +1,4 @@
+from botocore.auth import resolve_auth_type
 from botocore.awsrequest import prepare_request_dict
 from botocore.client import (
     BaseClient,
@@ -64,15 +65,19 @@ class AioClientCreator(ClientCreator):
         region_name, client_config = self._normalize_fips_region(
             region_name, client_config
         )
+        if auth := service_model.metadata.get('auth'):
+            service_signature_version = resolve_auth_type(auth)
+        else:
+            service_signature_version = service_model.metadata.get(
+                'signatureVersion'
+            )
         endpoint_bridge = ClientEndpointBridge(
             self._endpoint_resolver,
             scoped_config,
             client_config,
             service_signing_name=service_model.metadata.get('signingName'),
             config_store=self._config_store,
-            service_signature_version=service_model.metadata.get(
-                'signatureVersion'
-            ),
+            service_signature_version=service_signature_version,
         )
         client_args = self._get_client_args(
             service_model,
@@ -111,7 +116,7 @@ class AioClientCreator(ClientCreator):
         bases = [AioBaseClient]
         service_id = service_model.service_id.hyphenize()
         await self._event_emitter.emit(
-            'creating-client-class.%s' % service_id,
+            f'creating-client-class.{service_id}',
             class_attributes=class_attributes,
             base_classes=bases,
         )
@@ -189,7 +194,7 @@ class AioClientCreator(ClientCreator):
         handler = self._retry_handler_factory.create_retry_handler(
             retry_config, endpoint_prefix
         )
-        unique_id = 'retry-config-%s' % service_event_name
+        unique_id = f'retry-config-{service_event_name}'
         client.meta.events.register(
             f"needs-retry.{service_event_name}", handler, unique_id=unique_id
         )
@@ -253,6 +258,9 @@ class AioClientCreator(ClientCreator):
         self._set_s3_presign_signature_version(
             client.meta, client_config, scoped_config
         )
+        client.meta.events.register(
+            'before-parameter-build.s3', self._inject_s3_input_parameters
+        )
 
     def _get_client_args(
         self,
@@ -298,8 +306,8 @@ class AioClientCreator(ClientCreator):
 
 class AioBaseClient(BaseClient):
     async def _async_getattr(self, item):
-        event_name = 'getattr.{}.{}'.format(
-            self._service_model.service_id.hyphenize(), item
+        event_name = (
+            f'getattr.{self._service_model.service_id.hyphenize()}.{item}'
         )
         handler, event_response = await self.meta.events.emit_until_response(
             event_name, client=self
@@ -312,9 +320,7 @@ class AioBaseClient(BaseClient):
         # deferred attrgetter (See #803), it would resolve in hasattr always returning
         # true.  This ends up breaking ddtrace for example when it tries to set a pin.
         raise AttributeError(
-            "'{}' object has no attribute '{}'".format(
-                self.__class__.__name__, item
-            )
+            f"'{self.__class__.__name__}' object has no attribute '{item}'"
         )
 
     async def close(self):
@@ -340,8 +346,10 @@ class AioBaseClient(BaseClient):
             'client_region': self.meta.region_name,
             'client_config': self.meta.config,
             'has_streaming_input': operation_model.has_streaming_input,
-            'auth_type': operation_model.auth_type,
+            'auth_type': operation_model.resolved_auth_type,
+            'unsigned_payload': operation_model.unsigned_payload,
         }
+
         api_params = await self._emit_api_params(
             api_params=api_params,
             operation_model=operation_model,
@@ -369,9 +377,7 @@ class AioBaseClient(BaseClient):
 
         service_id = self._service_model.service_id.hyphenize()
         handler, event_response = await self.meta.events.emit_until_response(
-            'before-call.{service_id}.{operation_name}'.format(
-                service_id=service_id, operation_name=operation_name
-            ),
+            f'before-call.{service_id}.{operation_name}',
             model=operation_model,
             params=request_dict,
             request_signer=self._request_signer,
@@ -390,9 +396,7 @@ class AioBaseClient(BaseClient):
             )
 
         await self.meta.events.emit(
-            'after-call.{service_id}.{operation_name}'.format(
-                service_id=service_id, operation_name=operation_name
-            ),
+            f'after-call.{service_id}.{operation_name}',
             http_response=http,
             parsed=parsed_response,
             model=operation_model,
@@ -418,10 +422,7 @@ class AioBaseClient(BaseClient):
             )
         except Exception as e:
             await self.meta.events.emit(
-                'after-call-error.{service_id}.{operation_name}'.format(
-                    service_id=self._service_model.service_id.hyphenize(),
-                    operation_name=operation_model.name,
-                ),
+                f'after-call-error.{self._service_model.service_id.hyphenize()}.{operation_model.name}',
                 exception=e,
                 context=request_context,
             )
@@ -611,13 +612,13 @@ class AioBaseClient(BaseClient):
         """
         config = self._get_waiter_config()
         if not config:
-            raise ValueError("Waiter does not exist: %s" % waiter_name)
+            raise ValueError(f"Waiter does not exist: {waiter_name}")
         model = waiter.WaiterModel(config)
         mapping = {}
         for name in model.waiter_names:
             mapping[xform_name(name)] = name
         if waiter_name not in mapping:
-            raise ValueError("Waiter does not exist: %s" % waiter_name)
+            raise ValueError(f"Waiter does not exist: {waiter_name}")
 
         return waiter.create_waiter_with_client(
             mapping[waiter_name], model, self

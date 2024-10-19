@@ -1,9 +1,9 @@
 import asyncio
+from contextlib import AsyncExitStack
 
 import pytest
 
 import aiobotocore.session
-from tests._helpers import AsyncExitStack
 
 
 @pytest.mark.asyncio

@@ -156,8 +156,7 @@ def test_merge():
 @pytest.mark.moto
 @pytest.mark.asyncio
 async def test_config_http_session_cls():
-    class SuccessExc(Exception):
-        ...
+    class SuccessExc(Exception): ...
 
     class MyHttpSession(AIOHTTPSession):
         async def send(self, request):

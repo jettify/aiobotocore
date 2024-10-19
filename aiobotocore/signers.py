@@ -45,9 +45,7 @@ class AioRequestSigner(RequestSigner):
 
         # Allow mutating request before signing
         await self._event_emitter.emit(
-            'before-sign.{}.{}'.format(
-                self._service_id.hyphenize(), operation_name
-            ),
+            f'before-sign.{self._service_id.hyphenize()}.{operation_name}',
             request=request,
             signing_name=signing_name,
             region_name=self._region_name,
@@ -69,6 +67,10 @@ class AioRequestSigner(RequestSigner):
                 kwargs['region_name'] = signing_context['region']
             if signing_context.get('signing_name'):
                 kwargs['signing_name'] = signing_context['signing_name']
+            if signing_context.get('request_credentials'):
+                kwargs['request_credentials'] = signing_context[
+                    'request_credentials'
+                ]
             if signing_context.get('identity_cache') is not None:
                 self._resolve_identity_cache(
                     kwargs,
@@ -107,9 +109,7 @@ class AioRequestSigner(RequestSigner):
             signature_version += suffix
 
         handler, response = await self._event_emitter.emit_until_response(
-            'choose-signer.{}.{}'.format(
-                self._service_id.hyphenize(), operation_name
-            ),
+            f'choose-signer.{self._service_id.hyphenize()}.{operation_name}',
             signing_name=signing_name,
             region_name=region_name,
             signature_version=signature_version,
@@ -129,7 +129,12 @@ class AioRequestSigner(RequestSigner):
         return signature_version
 
     async def get_auth_instance(
-        self, signing_name, region_name, signature_version=None, **kwargs
+        self,
+        signing_name,
+        region_name,
+        signature_version=None,
+        request_credentials=None,
+        **kwargs,
     ):
         if signature_version is None:
             signature_version = self._signature_version
@@ -147,7 +152,7 @@ class AioRequestSigner(RequestSigner):
             auth = cls(frozen_token)
             return auth
 
-        credentials = self._credentials
+        credentials = request_credentials or self._credentials
         if getattr(cls, "REQUIRES_IDENTITY_CACHE", None) is True:
             cache = kwargs["identity_cache"]
             key = kwargs["cache_key"]

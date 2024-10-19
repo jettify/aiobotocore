@@ -1,3 +1,4 @@
+---
 codecov:
   branch: master
 
@@ -5,7 +6,7 @@ coverage:
   range: "95..100"
 
   status:
-    project: no
+    project: false
 
 flags:
   library:

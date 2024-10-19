@@ -796,7 +796,7 @@ class AioAssumeRoleProvider(AssumeRoleProvider):
                 provider=credential_source,
                 error_msg=(
                     'No credentials found in credential_source referenced '
-                    'in profile %s' % profile_name
+                    f'in profile {profile_name}'
                 ),
             )
         return credentials

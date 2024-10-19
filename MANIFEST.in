@@ -1,5 +1,0 @@
-include LICENSE
-include CHANGES.rst
-include README.rst
-graft aiobotocore
-global-exclude *.pyc *.swp

@@ -3,11 +3,13 @@ These tests have been taken from
 https://github.com/boto/botocore/blob/develop/tests/unit/test_credentials.py
 and adapted to work with asyncio and pytest
 """
+
 import binascii
 import os
 import sys
 import tempfile
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from functools import partial
 from typing import Optional
@@ -31,7 +33,6 @@ from botocore.utils import (
 from dateutil.tz import tzlocal, tzutc
 
 from aiobotocore import credentials
-from aiobotocore._helpers import asynccontextmanager
 from aiobotocore.credentials import (
     AioAssumeRoleProvider,
     AioCanonicalNameCredentialSourcer,
@@ -625,9 +626,7 @@ async def test_assumerolewebidentprovider_no_cache():
 
 # From class TestContainerProvider(BaseEnvVar):
 def full_url(url):
-    return 'http://{}{}'.format(
-        credentials.AioContainerMetadataFetcher.IP_ADDRESS, url
-    )
+    return f'http://{credentials.AioContainerMetadataFetcher.IP_ADDRESS}{url}'
 
 
 # From class TestEnvVar(BaseEnvVar):
@@ -864,9 +863,7 @@ async def test_createcredentialresolver(mock_session):
     assert isinstance(resolver, credentials.AioCredentialResolver)
 
 
-# Disabled on travis as we cant easily disable the tests properly and
-#  travis has an IAM role which can't be applied to the mock session
-# @pytest.mark.moto
+@pytest.mark.moto
 @pytest.mark.asyncio
 async def test_get_credentials(mock_session):
     session = mock_session()
@@ -967,9 +964,9 @@ def _create_assume_role_response(credentials, expiration=None):
 
 def _create_random_credentials():
     return Credentials(
-        'fake-%s' % random_chars(15),
-        'fake-%s' % random_chars(35),
-        'fake-%s' % random_chars(45),
+        f'fake-{random_chars(15)}',
+        f'fake-{random_chars(35)}',
+        f'fake-{random_chars(45)}',
     )
 
 
@@ -1096,9 +1093,7 @@ def assume_role_setup(base_assume_role_test_setup):
     credential_process = os.path.join(
         current_dir, 'utils', 'credentialprocess.py'
     )
-    self.credential_process = '{} {}'.format(
-        sys.executable, credential_process
-    )
+    self.credential_process = f'{sys.executable} {credential_process}'
 
     yield self
 

@@ -130,9 +130,9 @@ class AioMaxAttemptsDecorator(MaxAttemptsDecorator):
             if attempt_number >= self._max_attempts:
                 # explicitly set MaxAttemptsReached
                 if response is not None and 'ResponseMetadata' in response[1]:
-                    response[1]['ResponseMetadata'][
-                        'MaxAttemptsReached'
-                    ] = True
+                    response[1]['ResponseMetadata']['MaxAttemptsReached'] = (
+                        True
+                    )
                 logger.debug(
                     "Reached the maximum number of retry attempts: %s",
                     attempt_number,

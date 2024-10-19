@@ -8,8 +8,8 @@ class AioStubber(Stubber):
     def _add_response(self, method, service_response, expected_params):
         if not hasattr(self.client, method):
             raise ValueError(
-                "Client %s does not have method: %s"
-                % (self.client.meta.service_model.service_name, method)
+                f"Client {self.client.meta.service_model.service_name} "
+                f"does not have method: {method}"
             )  # pragma: no cover
 
         # Create a successful http response

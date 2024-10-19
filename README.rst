@@ -1,19 +1,34 @@
 aiobotocore
 ===========
-.. image:: https://travis-ci.com/aio-libs/aiobotocore.svg?branch=master
-    :target: https://travis-ci.com/aio-libs/aiobotocore
-.. image:: https://codecov.io/gh/aio-libs/aiobotocore/branch/master/graph/badge.svg
+.. |ci badge| image:: https://github.com/aio-libs/aiobotocore/actions/workflows/ci-cd.yml/badge.svg?branch=master
+    :target: https://github.com/aio-libs/aiobotocore/actions/workflows/ci-cd.yml
+    :alt: CI status of master branch
+.. |pre-commit badge| image:: https://results.pre-commit.ci/badge/github/aio-libs/aiobotocore/master.svg
+    :target: https://results.pre-commit.ci/latest/github/aio-libs/aiobotocore/master
+    :alt: pre-commit.ci status
+.. |coverage badge| image:: https://codecov.io/gh/aio-libs/aiobotocore/branch/master/graph/badge.svg
     :target: https://codecov.io/gh/aio-libs/aiobotocore
-.. image:: https://readthedocs.org/projects/aiobotocore/badge/?version=latest
+    :alt: Coverage status on master branch
+.. |docs badge| image:: https://readthedocs.org/projects/aiobotocore/badge/?version=latest
     :target: https://aiobotocore.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
-.. image:: https://img.shields.io/pypi/v/aiobotocore.svg
+.. |pypi badge| image:: https://img.shields.io/pypi/v/aiobotocore.svg
     :target: https://pypi.python.org/pypi/aiobotocore
-.. image:: https://badges.gitter.im/Join%20Chat.svg
+    :alt: Latest version on pypi
+.. |gitter badge| image:: https://badges.gitter.im/Join%20Chat.svg
     :target: https://gitter.im/aio-libs/aiobotocore
     :alt: Chat on Gitter
+.. |pypi downloads badge| image:: https://img.shields.io/pypi/dm/aiobotocore.svg?label=PyPI%20downloads
+    :target: https://pypi.org/project/aiobotocore/
+    :alt: Downloads Last Month
+.. |conda badge| image:: https://img.shields.io/conda/dn/conda-forge/aiobotocore.svg?label=Conda%20downloads
+    :target: https://anaconda.org/conda-forge/aiobotocore
+    :alt: Conda downloads
+.. |stackoverflow badge| image:: https://img.shields.io/badge/stackoverflow-Ask%20questions-blue.svg
+    :target: https://stackoverflow.com/questions/tagged/aiobotocore
+    :alt: Stack Overflow
 
-
+|ci badge| |pre-commit badge| |coverage badge| |docs badge| |pypi badge| |gitter badge| |pypi downloads badge| |conda badge| |stackoverflow badge|
 
 Async client for amazon services using botocore_ and aiohttp_/asyncio_.
 
@@ -143,8 +158,8 @@ commonly used methods.
 | Kinesis        | Basic methods tested  |
 +----------------+-----------------------+
 
-Due to the way boto3 is implemented, its highly likely that even if services are not listed above that you can take any `boto3.client('service')` and
-stick `await` infront of methods to make them async, e.g. `await client.list_named_queries()` would asynchronous list all of the named Athena queries.
+Due to the way boto3 is implemented, its highly likely that even if services are not listed above that you can take any ``boto3.client('service')`` and
+stick ``await`` in front of methods to make them async, e.g. ``await client.list_named_queries()`` would asynchronous list all of the named Athena queries.
 
 If a service is not listed here and you could do with some tests or examples feel free to raise an issue.
 
@@ -167,8 +182,9 @@ secret accessible via environment variables:
 ::
 
     $ pip install pip-tools
-    $ pip-compile requirements-dev.in
-    $ pip-sync requirements-dev.txt
+    $ pip-compile --all-extras pyproject.toml
+    $ pip-sync
+    $ pip install -e ".[awscli,boto3]"
     $ export AWS_ACCESS_KEY_ID=xxx
     $ export AWS_SECRET_ACCESS_KEY=xxx
     $ export AWS_DEFAULT_REGION=xxx # e.g. us-west-2
@@ -184,7 +200,7 @@ Execute tests suite:
 Enable type checking and code completion
 ----------------------------------------
 
-Install types-aiobotocore_ that contains type annotations for `aiobotocore`
+Install types-aiobotocore_ that contains type annotations for ``aiobotocore``
 and all supported botocore_ services.
 
 .. code:: bash
@@ -203,7 +219,7 @@ and all supported botocore_ services.
 Now you should be able to run Pylance_, pyright_, or mypy_ for type checking
 as well as code completion in your IDE.
 
-For `types-aiobotocore-lite` package use explicit type annotations:
+For ``types-aiobotocore-lite`` package use explicit type annotations:
 
 .. code:: python
 
@@ -216,13 +232,7 @@ For `types-aiobotocore-lite` package use explicit type annotations:
         # type checking and code completion is now enabled for client
 
 
-Full documentation for `types-aiobotocore` can be found here: https://youtype.github.io/types_aiobotocore_docs/
-
-
-Mailing List
-------------
-
-https://groups.google.com/forum/#!forum/aio-libs
+Full documentation for ``types-aiobotocore`` can be found here: https://youtype.github.io/types_aiobotocore_docs/
 
 
 Requirements

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 import json
+from contextlib import asynccontextmanager
 from typing import Iterator, Tuple, Union
 
 import pytest
@@ -9,7 +10,6 @@ from botocore.exceptions import ReadTimeoutError
 from botocore.utils import BadIMDSRequestError
 
 from aiobotocore import utils
-from aiobotocore._helpers import asynccontextmanager
 
 # TypeAlias (requires typing_extensions or >=3.10 to annotate)
 Response = Tuple[Union[str, object], int]

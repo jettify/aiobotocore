@@ -24,9 +24,7 @@ def create_token_resolver(session):
 
 
 class AioDeferredRefreshableToken(DeferredRefreshableToken):
-    def __init__(
-        self, method, refresh_using, time_fetcher=_utc_now
-    ):  # noqa: E501, lgtm [py/missing-call-to-init]
+    def __init__(self, method, refresh_using, time_fetcher=_utc_now):  # noqa: E501, lgtm [py/missing-call-to-init]
         self._time_fetcher = time_fetcher
         self._refresh_using = refresh_using
         self.method = method

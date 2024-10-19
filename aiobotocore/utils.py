@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import functools
 import inspect
 import json
@@ -34,7 +35,6 @@ from botocore.utils import (
 )
 
 import aiobotocore.httpsession
-from aiobotocore._helpers import asynccontextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class _RefCountedSession(aiobotocore.httpsession.AIOHTTPSession):
         self.__ref_count = 0
         self.__lock = None
 
-    @asynccontextmanager
+    @contextlib.asynccontextmanager
     async def acquire(self):
         if not self.__lock:
             self.__lock = asyncio.Lock()
@@ -478,17 +478,16 @@ class AioS3RegionRedirectorv2(S3RegionRedirectorv2):
 
         if new_region is None:
             logger.debug(
-                "S3 client configured for region %s but the bucket %s is not "
-                "in that region and the proper region could not be "
-                "automatically determined." % (client_region, bucket)
+                f"S3 client configured for region {client_region} but the "
+                f"bucket {bucket} is not in that region and the proper region "
+                "could not be automatically determined."
             )
             return
 
         logger.debug(
-            "S3 client configured for region %s but the bucket %s is in region"
-            " %s; Please configure the proper region to avoid multiple "
-            "unnecessary redirects and signing attempts."
-            % (client_region, bucket, new_region)
+            f"S3 client configured for region {client_region} but the bucket {bucket} "
+            f"is in region {new_region}; Please configure the proper region to "
+            f"avoid multiple unnecessary redirects and signing attempts."
         )
         # Adding the new region to _cache will make construct_endpoint() to
         # use the new region as value for the AWS::Region builtin parameter.
@@ -615,17 +614,16 @@ class AioS3RegionRedirector(S3RegionRedirector):
 
         if new_region is None:
             logger.debug(
-                "S3 client configured for region %s but the bucket %s is not "
+                f"S3 client configured for region {client_region} but the bucket {bucket} is not "
                 "in that region and the proper region could not be "
-                "automatically determined." % (client_region, bucket)
+                "automatically determined."
             )
             return
 
         logger.debug(
-            "S3 client configured for region %s but the bucket %s is in region"
-            " %s; Please configure the proper region to avoid multiple "
+            f"S3 client configured for region {client_region} but the bucket {bucket} is in region"
+            f" {new_region}; Please configure the proper region to avoid multiple "
             "unnecessary redirects and signing attempts."
-            % (client_region, bucket, new_region)
         )
         endpoint = self._endpoint_resolver.resolve('s3', new_region)
         endpoint = endpoint['endpoint_url']
@@ -670,9 +668,7 @@ class AioS3RegionRedirector(S3RegionRedirector):
 
 
 class AioContainerMetadataFetcher(ContainerMetadataFetcher):
-    def __init__(
-        self, session=None, sleep=asyncio.sleep
-    ):  # noqa: E501, lgtm [py/missing-call-to-init]
+    def __init__(self, session=None, sleep=asyncio.sleep):  # noqa: E501, lgtm [py/missing-call-to-init]
         if session is None:
             session = _RefCountedSession(timeout=self.TIMEOUT_SECONDS)
         self._session = session

@@ -53,7 +53,7 @@ class AioSession(_SyncSession):
 
         self.user_agent_name = 'aiobotocore'
         self.user_agent_version = __version__
-        self.user_agent_extra = 'botocore/%s' % botocore_version
+        self.user_agent_extra = f'botocore/{botocore_version}'
 
     def _create_token_resolver(self):
         return create_token_resolver(self)
@@ -108,7 +108,7 @@ class AioSession(_SyncSession):
         )
         service_id = EVENT_ALIASES.get(service_name, service_name)
         await self._events.emit(
-            'service-data-loaded.%s' % service_id,
+            f'service-data-loaded.{service_id}',
             service_data=service_data,
             service_name=service_name,
             session=self,

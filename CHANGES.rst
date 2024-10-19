@@ -1,6 +1,47 @@
 Changes
 -------
 
+2.15.2 (2024-10-09)
+^^^^^^^^^^^^^^^^^^^
+* relax botocore dependency specification
+
+2.15.1 (2024-09-19)
+^^^^^^^^^^^^^^^^^^^
+* relax botocore dependency specification
+
+2.15.0 (2024-09-10)
+^^^^^^^^^^^^^^^^^^^
+* bump botocore dependency specification
+
+2.14.0 (2024-08-28)
+^^^^^^^^^^^^^^^^^^^
+* bump botocore dependency specification
+
+2.13.3 (2024-08-22)
+^^^^^^^^^^^^^^^^^^^
+* fix ``create_waiter_with_client()``
+* relax botocore dependency specification
+
+2.13.2 (2024-07-18)
+^^^^^^^^^^^^^^^^^^^
+* fix for #1125 due to missing patch of StreamingChecksumBody
+
+2.13.1 (2024-06-24)
+^^^^^^^^^^^^^^^^^^^
+* bump botocore dependency specification
+
+2.13.0 (2024-05-16)
+^^^^^^^^^^^^^^^^^^^
+* address breaking change introduced in `aiohttp==3.9.2` #882
+
+2.12.4 (2024-05-16)
+^^^^^^^^^^^^^^^^^^^
+* bump botocore dependency specification
+
+2.12.3 (2024-04-11)
+^^^^^^^^^^^^^^^^^^^
+* relax botocore dependency specification
+
 2.12.2 (2024-04-01)
 ^^^^^^^^^^^^^^^^^^^
 * expose configuration of ``http_session_cls`` in ``AioConfig``

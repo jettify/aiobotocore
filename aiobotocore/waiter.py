@@ -58,12 +58,13 @@ def create_waiter_with_client(waiter_name, waiter_model, client):
 
     # Rename the waiter class based on the type of waiter.
     waiter_class_name = str(
-        '%s.Waiter.%s'
-        % (get_service_module_name(client.meta.service_model), waiter_name)
+        f'{get_service_module_name(client.meta.service_model)}.Waiter.{waiter_name}'
     )
 
     # Create the new waiter class
-    documented_waiter_cls = type(waiter_class_name, (Waiter,), {'wait': wait})
+    documented_waiter_cls = type(
+        waiter_class_name, (AIOWaiter,), {'wait': wait}
+    )
 
     # Return an instance of the new waiter class.
     return documented_waiter_cls(
@@ -107,8 +108,7 @@ class AIOWaiter(Waiter):
                     # can just handle here by raising an exception.
                     raise WaiterError(
                         name=self.name,
-                        reason='An error occurred (%s): %s'
-                        % (
+                        reason='An error occurred ({}): {}'.format(
                             response['Error'].get('Code', 'Unknown'),
                             response['Error'].get('Message', 'Unknown'),
                         ),
@@ -120,9 +120,7 @@ class AIOWaiter(Waiter):
                 )
                 return response
             if current_state == 'failure':
-                reason = 'Waiter encountered a terminal failure state: %s' % (
-                    acceptor.explanation
-                )
+                reason = f'Waiter encountered a terminal failure state: {acceptor.explanation}'
                 raise WaiterError(
                     name=self.name,
                     reason=reason,
@@ -133,8 +131,8 @@ class AIOWaiter(Waiter):
                     reason = 'Max attempts exceeded'
                 else:
                     reason = (
-                        'Max attempts exceeded. Previously accepted state: %s'
-                        % (acceptor.explanation)
+                        f'Max attempts exceeded. Previously accepted state: '
+                        f'{acceptor.explanation}'
                     )
                 raise WaiterError(
                     name=self.name,

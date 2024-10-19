@@ -40,9 +40,9 @@ def register_retry_handler(client, max_attempts=DEFAULT_MAX_ATTEMPTS):
         retry_quota=retry_quota,
     )
 
-    unique_id = 'retry-config-%s' % service_event_name
+    unique_id = f'retry-config-{service_event_name}'
     client.meta.events.register(
-        'needs-retry.%s' % service_event_name,
+        f'needs-retry.{service_event_name}',
         handler.needs_retry,
         unique_id=unique_id,
     )
@@ -82,9 +82,7 @@ class AioRetryPolicy(RetryPolicy):
 
 
 class AioStandardRetryConditions(StandardRetryConditions):
-    def __init__(
-        self, max_attempts=DEFAULT_MAX_ATTEMPTS
-    ):  # noqa: E501, lgtm [py/missing-call-to-init]
+    def __init__(self, max_attempts=DEFAULT_MAX_ATTEMPTS):  # noqa: E501, lgtm [py/missing-call-to-init]
         # Note: This class is for convenience so you can have the
         # standard retry condition in a single class.
         self._max_attempts_checker = MaxAttemptsChecker(max_attempts)

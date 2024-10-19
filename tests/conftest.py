@@ -6,7 +6,7 @@ import random
 import re
 import string
 import tempfile
-from contextlib import ExitStack
+from contextlib import AsyncExitStack, ExitStack
 from itertools import chain
 from typing import TYPE_CHECKING, Literal
 from unittest.mock import patch
@@ -24,7 +24,6 @@ import pytest
 import aiobotocore.session
 from aiobotocore.config import AioConfig
 from aiobotocore.httpsession import AIOHTTPSession, HttpxSession
-from tests._helpers import AsyncExitStack
 
 if TYPE_CHECKING:
     from _pytest.nodes import Node
@@ -94,9 +93,7 @@ async def assert_num_uploads_found(
             await asyncio.sleep(2)
 
         pytest.fail(
-            "Expected to see {} uploads, instead saw: {}".format(
-                num_uploads, amount_seen
-            )
+            f"Expected to see {num_uploads} uploads, instead saw: {amount_seen}"
         )
 
 

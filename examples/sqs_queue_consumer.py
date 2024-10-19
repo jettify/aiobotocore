@@ -2,6 +2,7 @@
 """
 aiobotocore SQS Consumer Example
 """
+
 import asyncio
 import sys
 

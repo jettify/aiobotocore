@@ -105,7 +105,7 @@ async def test_can_delete_urlencoded_object(
 @pytest.mark.moto
 async def test_can_paginate(s3_client, bucket_name, create_object):
     for i in range(5):
-        key_name = 'key%s' % i
+        key_name = f'key{i}'
         await create_object(key_name)
 
     paginator = s3_client.get_paginator('list_objects')
@@ -123,7 +123,7 @@ async def test_can_paginate_with_page_size(
     s3_client, bucket_name, create_object
 ):
     for i in range(5):
-        key_name = 'key%s' % i
+        key_name = f'key{i}'
         await create_object(key_name)
 
     paginator = s3_client.get_paginator('list_objects')
@@ -143,7 +143,7 @@ async def test_can_paginate_with_page_size(
 async def test_can_search_paginate(s3_client, bucket_name, create_object):
     keys = []
     for i in range(5):
-        key_name = 'key%s' % i
+        key_name = f'key{i}'
         keys.append(key_name)
         await create_object(key_name)
 
@@ -157,7 +157,7 @@ async def test_can_search_paginate(s3_client, bucket_name, create_object):
 @pytest.mark.moto
 async def test_can_paginate_iterator(s3_client, bucket_name, create_object):
     for i in range(5):
-        key_name = 'key%s' % i
+        key_name = f'key{i}'
         await create_object(key_name)
 
     paginator = s3_client.get_paginator('list_objects')
@@ -179,7 +179,7 @@ async def test_result_key_iters(s3_client, bucket_name, create_object):
     for i in range(5):
         key_name = f'key/{i}/{i}'
         await create_object(key_name)
-        key_name2 = 'key/%s' % i
+        key_name2 = f'key/{i}'
         await create_object(key_name2)
 
     paginator = s3_client.get_paginator('list_objects')
@@ -627,7 +627,7 @@ async def test_presign_sigv4(
     )
     msg = (
         "Host was suppose to be the us-east-1 endpoint, "
-        "instead got: %s" % presigned_url
+        f"instead got: {presigned_url}"
     )
     assert presigned_url.startswith(
         f'https://{bucket_name}.s3.amazonaws.com/{key}'

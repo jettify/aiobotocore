@@ -180,17 +180,16 @@ class AIOHTTPSession:
 
         return aiohttp.TCPConnector(
             limit=self._max_pool_connections,
-            verify_ssl=bool(self._verify),
-            ssl=ssl_context,
+            ssl=ssl_context or False,
             **self._connector_args,
         )
 
     async def _get_session(self, proxy_url):
         if not (session := self._sessions.get(proxy_url)):
             connector = self._create_connector(proxy_url)
-            self._sessions[
-                proxy_url
-            ] = session = await self._exit_stack.enter_async_context(
+            self._sessions[proxy_url] = (
+                session
+            ) = await self._exit_stack.enter_async_context(
                 aiohttp.ClientSession(
                     connector=connector,
                     timeout=self._timeout,
