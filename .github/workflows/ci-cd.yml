@@ -82,6 +82,7 @@ jobs:
       run: |
         make mototest
     - name: Run unittests without httpx
+      # run it on same python as codecov
       if: matrix.python-version == '3.11'
       env:
         COLOR: 'yes'
