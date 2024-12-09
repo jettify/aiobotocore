@@ -5,6 +5,11 @@ import zipfile
 
 # Third Party
 import botocore.client
+
+try:
+    import httpx
+except ImportError:
+    httpx = None
 import pytest
 
 
@@ -43,10 +48,13 @@ def lambda_handler(event, context):
 
 @pytest.mark.moto
 @pytest.mark.asyncio
-async def test_run_lambda(iam_client, lambda_client, aws_lambda_zip):
+async def test_run_lambda(
+    iam_client, lambda_client, aws_lambda_zip, current_http_backend
+):
+    function_name = f'test-function-{current_http_backend}'
     role_arn = await _get_role_arn(iam_client, 'test-iam-role')
     lambda_response = await lambda_client.create_function(
-        FunctionName='test-function',
+        FunctionName=function_name,
         Runtime='python3.8',
         Role=role_arn,
         Handler='lambda_function.lambda_handler',
@@ -55,19 +63,24 @@ async def test_run_lambda(iam_client, lambda_client, aws_lambda_zip):
         Publish=True,
         Code={'ZipFile': aws_lambda_zip},
     )
-    assert lambda_response['FunctionName'] == 'test-function'
+    assert lambda_response['FunctionName'] == function_name
 
     invoke_response = await lambda_client.invoke(
-        FunctionName="test-function",
+        FunctionName=function_name,
         InvocationType="RequestResponse",
         LogType='Tail',
         Payload=json.dumps({"hello": "world"}),
     )
 
-    async with invoke_response['Payload'] as stream:
-        data = await stream.read()
+    if httpx and isinstance(invoke_response['Payload'], httpx.Response):
+        data = await invoke_response['Payload'].aread()
+    else:
+        async with invoke_response['Payload'] as stream:
+            data = await stream.read()
 
     log_result = base64.b64decode(invoke_response["LogResult"])
 
     assert json.loads(data) == {'statusCode': 200, "body": {"hello": "world"}}
     assert b"{'hello': 'world'}" in log_result
+
+    await lambda_client.delete_function(FunctionName=function_name)

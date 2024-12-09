@@ -2,9 +2,15 @@ import asyncio
 import base64
 import hashlib
 from collections import defaultdict
+from typing import Callable, Literal
 
 import aioitertools
 import botocore.retries.adaptive
+
+try:
+    import httpx
+except ImportError:
+    httpx = None
 import pytest
 
 import aiobotocore.retries.adaptive
@@ -41,11 +47,15 @@ async def test_can_make_request_no_verify(s3_client):
     assert actual_keys == ['Buckets', 'Owner', 'ResponseMetadata']
 
 
+@pytest.fixture
+def skip_httpx(current_http_backend: str) -> None:
+    if current_http_backend == 'httpx':
+        pytest.skip('proxy support not implemented for httpx')
+
+
 @pytest.mark.moto
 @pytest.mark.asyncio
-async def test_fail_proxy_request(
-    aa_fail_proxy_config, s3_client, monkeypatch
-):
+async def test_fail_proxy_request(skip_httpx, aa_fail_proxy_config, s3_client):
     # based on test_can_make_request
     with pytest.raises(httpsession.ProxyConnectionError):
         await s3_client.list_buckets()
@@ -196,12 +206,21 @@ async def test_result_key_iters(s3_client, bucket_name, create_object):
 
 @pytest.mark.moto
 @pytest.mark.asyncio
-async def test_can_get_and_put_object(s3_client, create_object, bucket_name):
+async def test_can_get_and_put_object(
+    s3_client: aiobotocore.client.AioBaseClient,
+    create_object: Callable,
+    bucket_name: object,
+):
     await create_object('foobarbaz', body='body contents')
     resp = await s3_client.get_object(Bucket=bucket_name, Key='foobarbaz')
-    data = await resp['Body'].read()
-    # TODO: think about better api and make behavior like in aiohttp
-    resp['Body'].close()
+    if httpx and isinstance(resp['Body'], httpx.Response):
+        data = await resp['Body'].aread()
+        # note that calling `aclose()` is redundant, httpx will auto-close when the
+        # data is fully read
+        await resp['Body'].aclose()
+    else:
+        data = await resp['Body'].read()
+        resp['Body'].close()
     assert data == b'body contents'
 
 
@@ -267,11 +286,19 @@ async def test_get_object_stream_wrapper(
     await create_object('foobarbaz', body='body contents')
     response = await s3_client.get_object(Bucket=bucket_name, Key='foobarbaz')
     body = response['Body']
-    chunk1 = await body.read(1)
-    chunk2 = await body.read()
+    if httpx and isinstance(body, httpx.Response):
+        byte_iterator = body.aiter_raw(1)
+        chunk1 = await byte_iterator.__anext__()
+        chunk2 = b""
+        async for b in byte_iterator:
+            chunk2 += b
+        await body.aclose()
+    else:
+        chunk1 = await body.read(1)
+        chunk2 = await body.read()
+        body.close()
     assert chunk1 == b'b'
     assert chunk2 == b'ody contents'
-    response['Body'].close()
 
 
 @pytest.mark.moto
@@ -281,8 +308,13 @@ async def test_get_object_stream_context(
 ):
     await create_object('foobarbaz', body='body contents')
     response = await s3_client.get_object(Bucket=bucket_name, Key='foobarbaz')
-    async with response['Body'] as stream:
-        await stream.read()
+    # httpx does not support context manager
+    if httpx and isinstance(response['Body'], httpx.Response):
+        data = await response['Body'].aread()
+    else:
+        async with response['Body'] as stream:
+            data = await stream.read()
+    assert data == b'body contents'
 
 
 @pytest.mark.asyncio
@@ -380,8 +412,12 @@ async def test_unicode_key_put_list(s3_client, bucket_name, create_object):
     assert len(parsed['Contents']) == 1
     assert parsed['Contents'][0]['Key'] == key_name
     parsed = await s3_client.get_object(Bucket=bucket_name, Key=key_name)
-    data = await parsed['Body'].read()
-    parsed['Body'].close()
+    if httpx and isinstance(parsed['Body'], httpx.Response):
+        data = await parsed['Body'].aread()
+        await parsed['Body'].aclose()
+    else:
+        data = await parsed['Body'].read()
+        parsed['Body'].close()
     assert data == b'foo'
 
 
@@ -405,7 +441,12 @@ async def test_unicode_system_character(s3_client, bucket_name, create_object):
 
 @pytest.mark.moto
 @pytest.mark.asyncio
-async def test_non_normalized_key_paths(s3_client, bucket_name, create_object):
+async def test_non_normalized_key_paths(
+    s3_client,
+    bucket_name,
+    create_object,
+    current_http_backend: Literal['httpx', 'aiohttp'],
+):
     # The create_object method has assertEqual checks for 200 status.
     await create_object('key./././name')
     bucket = await s3_client.list_objects(Bucket=bucket_name)
@@ -437,8 +478,12 @@ async def test_copy_with_quoted_char(s3_client, create_object, bucket_name):
 
     # Now verify we can retrieve the copied object.
     resp = await s3_client.get_object(Bucket=bucket_name, Key=key_name2)
-    data = await resp['Body'].read()
-    resp['Body'].close()
+    if httpx and isinstance(resp['Body'], httpx.Response):
+        data = await resp['Body'].aread()
+        await resp['Body'].aclose()
+    else:
+        data = await resp['Body'].read()
+        resp['Body'].close()
     assert data == b'foo'
 
 
@@ -457,8 +502,12 @@ async def test_copy_with_query_string(s3_client, create_object, bucket_name):
 
     # Now verify we can retrieve the copied object.
     resp = await s3_client.get_object(Bucket=bucket_name, Key=key_name2)
-    data = await resp['Body'].read()
-    resp['Body'].close()
+    if httpx and isinstance(resp['Body'], httpx.Response):
+        data = await resp['Body'].aread()
+        await resp['Body'].aclose()
+    else:
+        data = await resp['Body'].read()
+        resp['Body'].close()
     assert data == b'foo'
 
 
@@ -477,8 +526,12 @@ async def test_can_copy_with_dict_form(s3_client, create_object, bucket_name):
 
     # Now verify we can retrieve the copied object.
     resp = await s3_client.get_object(Bucket=bucket_name, Key=key_name2)
-    data = await resp['Body'].read()
-    resp['Body'].close()
+    if httpx and isinstance(resp['Body'], httpx.Response):
+        data = await resp['Body'].aread()
+        await resp['Body'].aclose()
+    else:
+        data = await resp['Body'].read()
+        resp['Body'].close()
     assert data == b'foo'
 
 
@@ -502,8 +555,12 @@ async def test_can_copy_with_dict_form_with_version(
 
     # Now verify we can retrieve the copied object.
     resp = await s3_client.get_object(Bucket=bucket_name, Key=key_name2)
-    data = await resp['Body'].read()
-    resp['Body'].close()
+    if httpx and isinstance(resp['Body'], httpx.Response):
+        data = await resp['Body'].aread()
+        await resp['Body'].aclose()
+    else:
+        data = await resp['Body'].read()
+        resp['Body'].close()
     assert data == b'foo'
 
 
@@ -543,11 +600,16 @@ async def test_presign_with_existing_query_string_values(
         'get_object', Params=params
     )
     # Try to retrieve the object using the presigned url.
-
-    async with aio_session.get(presigned_url) as resp:
-        data = await resp.read()
-        assert resp.headers['Content-Disposition'] == content_disposition
-        assert data == b'foo'
+    if httpx and isinstance(aio_session, httpx.AsyncClient):
+        async with aio_session.stream("GET", presigned_url) as resp:
+            data = await resp.aread()
+            headers = resp.headers
+    else:
+        async with aio_session.get(presigned_url) as resp:
+            data = await resp.read()
+            headers = resp.headers
+    assert headers['Content-Disposition'] == content_disposition
+    assert data == b'foo'
 
 
 @pytest.mark.parametrize('region', ['us-east-1'])
@@ -572,9 +634,13 @@ async def test_presign_sigv4(
     ), msg
 
     # Try to retrieve the object using the presigned url.
-    async with aio_session.get(presigned_url) as resp:
-        data = await resp.read()
-        assert data == b'foo'
+    if httpx and isinstance(aio_session, httpx.AsyncClient):
+        async with aio_session.stream("GET", presigned_url) as resp:
+            data = await resp.aread()
+    else:
+        async with aio_session.get(presigned_url) as resp:
+            data = await resp.read()
+    assert data == b'foo'
 
 
 @pytest.mark.parametrize('signature_version', ['s3v4'])
@@ -589,8 +655,12 @@ async def test_can_follow_signed_url_redirect(
     resp = await alternative_s3_client.get_object(
         Bucket=bucket_name, Key='foobarbaz'
     )
-    data = await resp['Body'].read()
-    resp['Body'].close()
+    if httpx and isinstance(resp['Body'], httpx.Response):
+        data = await resp['Body'].aread()
+        await resp['Body'].aclose()
+    else:
+        data = await resp['Body'].read()
+        resp['Body'].close()
     assert data == b'foo'
 
 

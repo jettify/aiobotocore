@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import asyncio
+from typing import Any
 
 from botocore.endpoint import (
     DEFAULT_TIMEOUT,
@@ -13,16 +16,24 @@ from botocore.endpoint import (
     logger,
 )
 from botocore.hooks import first_non_none_response
-from urllib3.response import HTTPHeaderDict
+from requests.models import Response
+from urllib3._collections import HTTPHeaderDict
 
 from aiobotocore.httpchecksum import handle_checksum_body
 from aiobotocore.httpsession import AIOHTTPSession
 from aiobotocore.response import StreamingBody
 
+try:
+    import httpx
+except ImportError:
+    httpx = None
+
 DEFAULT_HTTP_SESSION_CLS = AIOHTTPSession
 
 
-async def convert_to_response_dict(http_response, operation_model):
+async def convert_to_response_dict(
+    http_response: Response, operation_model
+) -> dict[str, Any]:
     """Convert an HTTP response object to a request dict.
 
     This converts the requests library's HTTP response object to
@@ -38,7 +49,11 @@ async def convert_to_response_dict(http_response, operation_model):
         * body (string or file-like object)
 
     """
-    response_dict = {
+    if httpx and isinstance(http_response.raw, httpx.Response):
+        raw_headers = http_response.raw.headers.raw
+    else:  # aiohttp.ClientResponse
+        raw_headers = http_response.raw.raw_headers
+    response_dict: dict[str, Any] = {
         # botocore converts keys to str, so make sure that they are in
         # the expected case. See detailed discussion here:
         # https://github.com/aio-libs/aiobotocore/pull/116
@@ -46,7 +61,7 @@ async def convert_to_response_dict(http_response, operation_model):
         'headers': HTTPHeaderDict(
             {
                 k.decode('utf-8').lower(): v.decode('utf-8')
-                for k, v in http_response.raw.raw_headers
+                for k, v in raw_headers
             }
         ),
         'status_code': http_response.status_code,
@@ -59,8 +74,11 @@ async def convert_to_response_dict(http_response, operation_model):
     elif operation_model.has_event_stream_output:
         response_dict['body'] = http_response.raw
     elif operation_model.has_streaming_output:
-        length = response_dict['headers'].get('content-length')
-        response_dict['body'] = StreamingBody(http_response.raw, length)
+        if httpx and isinstance(http_response.raw, httpx.Response):
+            response_dict['body'] = http_response.raw
+        else:
+            length = response_dict['headers'].get('content-length')
+            response_dict['body'] = StreamingBody(http_response.raw, length)
     else:
         response_dict['body'] = await http_response.content
     return response_dict
@@ -282,7 +300,7 @@ class AioEndpoint(Endpoint):
             return False
         else:
             # Request needs to be retried, and we need to sleep
-            # for the specified number of times.
+            # for the specified number of seconds.
             logger.debug(
                 "Response received to retry, sleeping for %s seconds",
                 handler_response,

@@ -7,10 +7,13 @@ import aiobotocore.session
 
 
 @pytest.mark.asyncio
-async def test_kinesis_stream_json_parser(exit_stack: AsyncExitStack):
+async def test_kinesis_stream_json_parser(
+    request, exit_stack: AsyncExitStack, current_http_backend: str
+):
     # unfortunately moto doesn't support kinesis register_stream_consumer +
     # subscribe_to_shard yet
-    stream_name = "my_stream"
+    # make stream name depend on backend so the test can be parallelized across them
+    stream_name = f"my_stream_{current_http_backend}"
     stream_arn = consumer_arn = None
     consumer_name = 'consumer'
 

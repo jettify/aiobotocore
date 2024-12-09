@@ -6,7 +6,7 @@ from botocore.config import Config
 from botocore.exceptions import ParamValidationError, ReadTimeoutError
 
 from aiobotocore.config import AioConfig
-from aiobotocore.httpsession import AIOHTTPSession
+from aiobotocore.httpsession import AIOHTTPSession, HttpxSession
 from aiobotocore.session import AioSession, get_session
 from tests.mock_server import AIOServer
 
@@ -14,10 +14,10 @@ from tests.mock_server import AIOServer
 # NOTE: this doesn't require moto but needs to be marked to run with coverage
 @pytest.mark.moto
 @pytest.mark.asyncio
-async def test_connector_args():
+async def test_connector_args(current_http_backend: str):
     with pytest.raises(ParamValidationError):
         # wrong type
-        connector_args = dict(use_dns_cache=1)
+        connector_args: dict[str, object] = dict(use_dns_cache=1)
         AioConfig(connector_args)
 
     with pytest.raises(ParamValidationError):
@@ -49,6 +49,23 @@ async def test_connector_args():
         # invalid key
         connector_args = dict(foo="1")
         AioConfig(connector_args)
+
+    with pytest.raises(
+        ParamValidationError,
+        match='Httpx does not support dns caching. https://github.com/encode/httpx/discussions/2211',
+    ):
+        AioConfig({'use_dns_cache': True}, http_session_cls=HttpxSession)
+
+    with pytest.raises(
+        ParamValidationError,
+        match='Httpx backend does not currently support force_close.',
+    ):
+        AioConfig({'force_close': True}, http_session_cls=HttpxSession)
+
+    with pytest.raises(
+        ParamValidationError, match='Httpx backend does not support resolver.'
+    ):
+        AioConfig({'resolver': True}, http_session_cls=HttpxSession)
 
     # Test valid configs:
     AioConfig({"resolver": aiohttp.resolver.DefaultResolver()})

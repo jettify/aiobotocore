@@ -28,3 +28,31 @@ class AioAWSResponse(AWSResponse):
     @property
     def text(self):
         return self._text_prop()
+
+
+class HttpxAWSResponse(AWSResponse):
+    # Unlike AWSResponse, these return awaitables
+
+    async def _content_prop(self):
+        """Content of the response as bytes."""
+
+        if self._content is None:
+            # NOTE: this will cache the data in self.raw
+            self._content = await self.raw.aread() or b''
+
+        return self._content
+
+    @property
+    def content(self):
+        return self._content_prop()
+
+    async def _text_prop(self):
+        encoding = botocore.utils.get_encoding_from_headers(self.headers)
+        if encoding:
+            return (await self.content).decode(encoding)
+        else:
+            return (await self.content).decode('utf-8')
+
+    @property
+    def text(self):
+        return self._text_prop()

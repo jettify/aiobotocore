@@ -10,6 +10,7 @@
 # distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
 # ANY KIND, either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
+from copy import deepcopy
 from unittest import mock
 
 import dateutil.parser
@@ -289,6 +290,10 @@ async def test_sso_token_provider_refresh(test_case):
     }
     cache_key = "d033e22ae348aeb5660fc2140aec35850c4da997"
     token_cache = {}
+
+    # deepcopy the test case so the test can be parametrized against the same
+    # test case w/ aiohttp & httpx
+    test_case = deepcopy(test_case)
 
     # Prepopulate the token cache
     cached_token = test_case.pop("cachedToken", None)
