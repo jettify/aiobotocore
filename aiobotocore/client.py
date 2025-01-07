@@ -1,3 +1,5 @@
+import asyncio
+
 from botocore.auth import resolve_auth_type
 from botocore.awsrequest import prepare_request_dict
 from botocore.client import (
@@ -41,26 +43,23 @@ class AioClientCreator(ClientCreator):
         api_version=None,
         client_config=None,
         auth_token=None,
+        load_executor=False,
     ):
         responses = await self._event_emitter.emit(
             'choose-service-name', service_name=service_name
         )
         service_name = first_non_none_response(responses, default=service_name)
-        service_model = self._load_service_model(service_name, api_version)
-        try:
-            endpoints_ruleset_data = self._load_service_endpoints_ruleset(
-                service_name, api_version
+        logger.debug(
+            "AioClientCreator - Method load_service_model[botocore] could generate I/O. Running in executor: %s",
+            load_executor,
+        )
+        if load_executor:
+            model_data = await asyncio.get_running_loop().run_in_executor(
+                None, self._load_models, service_name, api_version
             )
-            partition_data = self._loader.load_data('partitions')
-        except UnknownServiceError:
-            endpoints_ruleset_data = None
-            partition_data = None
-            logger.info(
-                'No endpoints ruleset found for service %s, falling back to '
-                'legacy endpoint routing.',
-                service_name,
-            )
-
+        else:
+            model_data = self._load_models(service_name, api_version)
+        service_model, endpoints_ruleset_data, partition_data = model_data
         cls = await self._create_client_class(service_name, service_model)
         region_name, client_config = self._normalize_fips_region(
             region_name, client_config
@@ -108,6 +107,23 @@ class AioClientCreator(ClientCreator):
             service_client, endpoint_url, client_config
         )
         return service_client
+
+    def _load_models(self, service_name, api_version):
+        service_model = self._load_service_model(service_name, api_version)
+        try:
+            endpoints_ruleset_data = self._load_service_endpoints_ruleset(
+                service_name, api_version
+            )
+            partition_data = self._loader.load_data('partitions')
+        except UnknownServiceError:
+            endpoints_ruleset_data = None
+            partition_data = None
+            logger.info(
+                'No endpoints ruleset found for service %s, falling back to '
+                'legacy endpoint routing.',
+                service_name,
+            )
+        return service_model, endpoints_ruleset_data, partition_data
 
     async def _create_client_class(self, service_name, service_model):
         class_attributes = self._create_methods(service_model)

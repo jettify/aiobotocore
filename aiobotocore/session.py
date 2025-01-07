@@ -1,7 +1,12 @@
+import asyncio
+import functools
+
 from botocore import UNSIGNED
 from botocore import __version__ as botocore_version
 from botocore import translate
+from botocore.client import logger
 from botocore.exceptions import PartialCredentialsError
+from botocore.loaders import Loader
 from botocore.session import EVENT_ALIASES, ServiceModel
 from botocore.session import Session as _SyncSession
 from botocore.session import UnknownServiceError, copy
@@ -37,6 +42,7 @@ class AioSession(_SyncSession):
         event_hooks=None,
         include_builtin_handlers=True,
         profile=None,
+        load_executor=False,
     ):
         if event_hooks is None:
             event_hooks = AioHierarchicalEmitter()
@@ -46,6 +52,7 @@ class AioSession(_SyncSession):
         )
 
         self._set_user_agent_for_session()
+        self.load_executor = load_executor
 
     def _set_user_agent_for_session(self):
         # Mimic approach taken by AWS's aws-cli project
@@ -103,9 +110,25 @@ class AioSession(_SyncSession):
         Retrieve the fully merged data associated with a service.
         """
         data_path = service_name
-        service_data = self.get_component('data_loader').load_service_model(
-            data_path, type_name='service-2', api_version=api_version
+        data_loader: Loader = self.get_component('data_loader')
+        logger.debug(
+            "AioSession - Method load_service_model[botocore] could generate I/O. Running in executor: %s",
+            self.load_executor,
         )
+        if self.load_executor:
+            service_data = await asyncio.get_event_loop().run_in_executor(
+                None,
+                functools.partial(
+                    data_loader.load_service_model,
+                    data_path,
+                    type_name='service-2',
+                    api_version=api_version,
+                ),
+            )
+        else:
+            service_data = data_loader.load_service_model(
+                data_path, type_name='service-2', api_version=api_version
+            )
         service_id = EVENT_ALIASES.get(service_name, service_name)
         await self._events.emit(
             f'service-data-loaded.{service_id}',
@@ -223,6 +246,7 @@ class AioSession(_SyncSession):
             client_config=config,
             api_version=api_version,
             auth_token=auth_token,
+            load_executor=self.load_executor,
         )
         monitor = self._get_internal_component('monitor')
         if monitor is not None:
