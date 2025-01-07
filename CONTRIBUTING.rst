@@ -13,23 +13,16 @@ First of all, clone the repository::
 
     $ git clone git@github.com:aio-libs/aiobotocore.git
 
-Create virtualenv with at least python3.8 (older versions are not supported).
-For example, using ``virtualenvwrapper`` commands could look like::
+Make sure the Python package and project manager `uv <https://docs.astral.sh/uv/>`_ is installed.
 
-   $ cd aiobotocore
-   $ mkvirtualenv --python=`which python3.8` aiobotocore
+Create a virtual environment::
 
-
-After that, please install libraries required for development::
-
-    $ pip install pip-tools
-    $ pip-compile --all-extras pyproject.toml requirements-dev.in
-    $ pip-sync
-    $ pip install -e .
+    $ cd aiobotocore
+    $ uv venv
 
 Install pre-commit hooks::
 
-    $ pre-commit install
+    $ uv run pre-commit install
 
 Congratulations, you are ready to run the test suite.
 
@@ -37,7 +30,7 @@ There are two set of tests, those that can be mocked through `moto <https://gith
 
 To run the moto tests::
 
-    $ make mototest
+    $ uv run make mototest
 
 To run the non-moto tests, make sure you have your amazon key and secret accessible via environment variables::
 
@@ -47,15 +40,15 @@ To run the non-moto tests, make sure you have your amazon key and secret accessi
 
 Execute full tests suite::
 
-    $ make test
+    $ uv run make test
 
 Execute full tests suite with coverage::
 
-    $ make cov
+    $ uv run make cov
 
 To run individual use following command::
 
-    $ pytest -sv tests/test_monitor.py -k test_name
+    $ uv run pytest -sv tests/test_monitor.py -k test_name
 
 
 Reporting an Issue
