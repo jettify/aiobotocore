@@ -1,6 +1,7 @@
 ---
 ci:
   autoupdate_schedule: quarterly
+  skip: [uv-lock]  # https://github.com/astral-sh/uv/issues/10167
 
 repos:
 - repo: 'https://github.com/pre-commit/pre-commit-hooks'
@@ -19,6 +20,10 @@ repos:
   - id: ruff
     args: [--fix]
   - id: ruff-format
+- repo: https://github.com/astral-sh/uv-pre-commit
+  rev: 0.5.15
+  hooks:
+  - id: uv-lock
 - repo: https://github.com/adrienverge/yamllint
   rev: v1.35.1
   hooks:
