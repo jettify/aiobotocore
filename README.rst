@@ -82,7 +82,7 @@ Basic Example
                 assert await stream.read() == data
 
             # list s3 objects using paginator
-            paginator = client.get_paginator('list_objects')
+            paginator = client.get_paginator('list_objects_v2')
             async for result in paginator.paginate(Bucket=bucket, Prefix=folder):
                 for c in result.get('Contents', []):
                     print(c)
